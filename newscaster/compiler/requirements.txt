@@ -1,0 +1,3 @@
+pika
+pydub
+python-dotenv
