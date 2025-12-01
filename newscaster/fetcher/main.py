@@ -6,16 +6,16 @@ import requests
 import pika
 
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-RABBITMQ_HOST = "rabbitmq"
+RABBIT = "rabbitmq"
 
 def connect_rabbit():
     while True:
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST))
+            conn = pika.BlockingConnection(pika.ConnectionParameters(RABBIT))
             print("Fetcher connected to RabbitMQ")
-            return connection
+            return conn
         except:
-            print("Fetcher: waiting for RabbitMQ...")
+            print("Fetcher waiting for RabbitMQ...")
             time.sleep(2)
 
 def fetch_headlines():
@@ -24,14 +24,12 @@ def fetch_headlines():
     data = r.json()
     return data.get("articles", [])[:10]
 
-if __name__ == "__main__":
-    print("Fetcher starting...")
+def callback(ch, method, props, body):
+    data = json.loads(body)
+    job_id = data["job_id"]
 
-    conn = connect_rabbit()
-    channel = conn.channel()
-    channel.queue_declare(queue="to_summarizer")
+    print(f"Fetcher: received request to generate job {job_id}")
 
-    job_id = str(uuid.uuid4())
     articles = fetch_headlines()
 
     payload = {
@@ -46,8 +44,25 @@ if __name__ == "__main__":
         ]
     }
 
-    # Publish ONE combined message
-    channel.basic_publish(exchange="", routing_key="to_summarizer", body=json.dumps(payload))
+    # Send SINGLE message to summarizer
+    ch.basic_publish(
+        exchange="",
+        routing_key="to_summarizer",
+        body=json.dumps(payload)
+    )
 
-    print("Fetcher completed job:", job_id)
-    conn.close()
+    print("Fetcher published articles for job:", job_id)
+    ch.basic_ack(method.delivery_tag)
+
+if __name__ == "__main__":
+    conn = connect_rabbit()
+    ch = conn.channel()
+
+    ch.queue_declare(queue="to_fetcher")
+    ch.queue_declare(queue="to_summarizer")
+
+    print("Fetcher worker started.")
+    ch.basic_qos(prefetch_count=1)
+    ch.basic_consume(queue="to_fetcher", on_message_callback=callback)
+
+    ch.start_consuming()

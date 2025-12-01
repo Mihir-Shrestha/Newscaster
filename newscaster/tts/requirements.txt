@@ -2,3 +2,4 @@ pika
 google-cloud-texttospeech
 python-dotenv
 pydub
+redis

@@ -1,12 +1,14 @@
 services:
   rabbitmq:
     image: rabbitmq:3-management
+    container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
 
   redis:
-    image: redis:6
+    image: redis:6.2
+    container_name: redis
     ports:
       - "6379:6379"
 
@@ -32,7 +34,17 @@ services:
 
   api:
     build: ./api
+    container_name: api
     ports:
       - "8000:8000"
     volumes:
-      - ./output:/output"
+      - ./api/templates:/app/templates
+      - ./api/static:/app/static
+      - ./output:/output
+    environment:
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_QUEUE=to_fetcher
+    depends_on:
+      - redis
+      - rabbitmq
