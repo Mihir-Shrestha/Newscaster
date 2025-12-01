@@ -1,64 +1,38 @@
-version: "3.9"
-
 services:
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq
     ports:
       - "5672:5672"
-      - "15672:15672" # dashboard
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      - "15672:15672"
 
   redis:
     image: redis:6
-    container_name: redis
     ports:
       - "6379:6379"
 
   fetcher:
     build: ./fetcher
-    container_name: fetcher
-    environment:
-      NEWS_API_KEY: ${NEWS_API_KEY}
-      RABBITMQ: rabbitmq
+    env_file: .env
     depends_on:
       - rabbitmq
 
   summarizer:
     build: ./summarizer
-    container_name: summarizer
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    env_file: .env
     depends_on:
       - rabbitmq
 
   tts:
     build: ./tts
-    container_name: tts
-    environment:
-      GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-key.json
     volumes:
       - ./output:/output
       - ./secrets:/secrets
     depends_on:
       - rabbitmq
 
-  compiler:
-    build: ./compiler
-    container_name: compiler
-    volumes:
-      - ./output:/output
-    depends_on:
-      - rabbitmq
-
   api:
     build: ./api
-    container_name: api
     ports:
       - "8000:8000"
     volumes:
-      - ./output:/output
-    depends_on:
-      - compiler
+      - ./output:/output"
