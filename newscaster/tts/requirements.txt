@@ -1,5 +1,6 @@
 pika
 google-cloud-texttospeech
+google-cloud-storage
 python-dotenv
 pydub
 redis

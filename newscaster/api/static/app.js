@@ -24,14 +24,14 @@ async function loadEpisodes() {
 
 document.getElementById("generateBtn").onclick = async () => {
     const status = document.getElementById("status");
-    status.innerText = "Generating new episode... this usually takes 30–60 seconds.";
+    status.innerText = "Generating new episode... this usually takes 30-60 seconds.";
 
     const res = await fetch("/generate", { method: "POST" });
     const data = await res.json();
     
     const jobId = data.job_id;
 
-    // Poll Redis through API every 5 seconds
+    // Poll Redis through API every 15 seconds
     const interval = setInterval(async () => {
         const latest = await fetch("/latest").then(r => r.json());
         if (latest.id === jobId) {

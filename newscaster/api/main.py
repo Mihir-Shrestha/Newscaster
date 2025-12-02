@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import RedirectResponse
 import pika
 import uuid
 from datetime import datetime, timezone
@@ -46,15 +47,11 @@ def get_episodes():
 
 @app.get("/episodes/{eid}/audio")
 def get_audio(eid: str):
-    audio_file = r.hget(f"episode:{eid}", "audio_file")
-    if not audio_file:
+    gcs_url = r.hget(f"episode:{eid}", "gcs_url")
+    if not gcs_url:
         return JSONResponse({"error": "Episode not found"}, status_code=404)
 
-    path = f"/output/{audio_file}"
-    if not os.path.exists(path):
-        return JSONResponse({"error": "Audio file missing"}, status_code=404)
-
-    return FileResponse(path, media_type="audio/mpeg")
+    return RedirectResponse(gcs_url)
 
 @app.post("/generate")
 def generate_episode():
