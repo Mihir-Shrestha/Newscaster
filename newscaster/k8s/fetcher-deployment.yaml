@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fetcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fetcher
+  template:
+    metadata:
+      labels:
+        app: fetcher
+    spec:
+      containers:
+      - name: fetcher
+        image: newscaster-fetcher:latest
+        imagePullPolicy: Never
+        env:
+        - name: FETCHER_MODE
+          value: "worker"
+        - name: NEWS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: NEWS_API_KEY
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"

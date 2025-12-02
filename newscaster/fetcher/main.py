@@ -55,14 +55,46 @@ def callback(ch, method, props, body):
     ch.basic_ack(method.delivery_tag)
 
 if __name__ == "__main__":
-    conn = connect_rabbit()
-    ch = conn.channel()
+    mode = os.getenv("FETCHER_MODE", "worker")
 
-    ch.queue_declare(queue="to_fetcher")
-    ch.queue_declare(queue="to_summarizer")
+    if mode == "cron":
+        # CronJob mode → run once then exit
+        print("Fetcher running in CRON MODE")
+        job_id = str(uuid.uuid4())
+        articles = fetch_headlines()
 
-    print("Fetcher worker started.")
-    ch.basic_qos(prefetch_count=1)
-    ch.basic_consume(queue="to_fetcher", on_message_callback=callback)
+        payload = {
+            "job_id": job_id,
+            "articles": [
+                {
+                    "title": art["title"],
+                    "content": art.get("content") or art.get("description") or "",
+                    "url": art["url"]
+                }
+                for art in articles
+            ]
+        }
 
-    ch.start_consuming()
+        conn = connect_rabbit()
+        ch = conn.channel()
+        ch.queue_declare(queue="to_summarizer")
+        ch.basic_publish(exchange="", routing_key="to_summarizer", body=json.dumps(payload))
+
+        print("Fetcher CRON job finished for job:", job_id)
+        exit(0)
+
+    else:
+        # Worker mode → listen to RabbitMQ forever
+        print("Fetcher running in WORKER MODE")
+
+        conn = connect_rabbit()
+        ch = conn.channel()
+
+        ch.queue_declare(queue="to_fetcher")
+        ch.queue_declare(queue="to_summarizer")
+
+        ch.basic_qos(prefetch_count=1)
+        ch.basic_consume(queue="to_fetcher", on_message_callback=callback)
+
+        print("Fetcher worker started.")
+        ch.start_consuming()

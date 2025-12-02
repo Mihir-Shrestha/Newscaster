@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fetcher-cron
+spec:
+  schedule: "0 6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: fetcher
+            image: newscaster-fetcher:latest
+            imagePullPolicy: Never
+            env:
+            - name: FETCHER_MODE
+              value: "cron"
+            - name: NEWS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newscaster-api-secrets
+                  key: NEWS_API_KEY
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"

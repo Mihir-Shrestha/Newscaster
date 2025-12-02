@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tts
+  template:
+    metadata:
+      labels:
+        app: tts
+    spec:
+      containers:
+      - name: tts
+        image: newscaster-tts:latest
+        imagePullPolicy: Never
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/var/secrets/google/gcp-key.json"
+        - name: BUCKET_NAME
+          valueFrom:
+            secretKeyRef:
+              name: gcs-bucket
+              key: BUCKET_NAME
+        volumeMounts:
+        - name: gcp-secret
+          mountPath: /var/secrets/google
+        - name: output
+          mountPath: /output
+      volumes:
+      - name: gcp-secret
+        secret:
+          secretName: gcp-sa-key
+      - name: output
+        emptyDir: {}

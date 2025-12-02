@@ -101,10 +101,10 @@ def callback(ch, method, props, body):
     ch.basic_ack(method.delivery_tag)
 
 if __name__ == "__main__":
-    if not os.path.exists("/secrets/gcp-key.json"):
-        raise FileNotFoundError("Missing /secrets/gcp-key.json for Google credentials")
+    if not os.path.exists("/var/secrets/google/gcp-key.json"):
+        raise FileNotFoundError("Missing /var/secrets/google/gcp-key.json for Google credentials")
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/secrets/gcp-key.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/var/secrets/google/gcp-key.json"
 
     conn = connect_rabbit()
     ch = conn.channel()

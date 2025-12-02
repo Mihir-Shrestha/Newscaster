@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: summarizer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: summarizer
+  template:
+    metadata:
+      labels:
+        app: summarizer
+    spec:
+      containers:
+      - name: summarizer
+        image: newscaster-summarizer:latest
+        imagePullPolicy: Never
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: OPENAI_API_KEY
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"
