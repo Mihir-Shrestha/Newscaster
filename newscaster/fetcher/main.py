@@ -4,9 +4,11 @@ import time
 import uuid
 import requests
 import pika
+from prometheus_client import Counter, start_http_server
 
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 RABBIT = "rabbitmq"
+JOBS_PROCESSED = Counter("jobs_processed_total", "Jobs processed")
 
 def connect_rabbit():
     while True:
@@ -25,6 +27,7 @@ def fetch_headlines():
     return data.get("articles", [])[:10]
 
 def callback(ch, method, props, body):
+    JOBS_PROCESSED.inc()
     data = json.loads(body)
     job_id = data["job_id"]
 
@@ -55,6 +58,7 @@ def callback(ch, method, props, body):
     ch.basic_ack(method.delivery_tag)
 
 if __name__ == "__main__":
+    start_http_server(9090)
     mode = os.getenv("FETCHER_MODE", "worker")
 
     if mode == "cron":

@@ -6,9 +6,11 @@ import redis
 from datetime import datetime, timedelta
 from google.cloud import texttospeech
 from google.cloud import storage
+from prometheus_client import Counter, start_http_server
 
 RABBIT = "rabbitmq"
 BUCKET_NAME = "newscaster-episodes"
+JOBS_PROCESSED = Counter("jobs_processed_total", "Jobs processed")
 
 def connect_rabbit():
     while True:
@@ -55,6 +57,7 @@ def tts_generate(text, filename):
     return out_path
 
 def callback(ch, method, props, body):
+    JOBS_PROCESSED.inc()
     data = json.loads(body)
 
     job_id = data["job_id"]
@@ -99,8 +102,10 @@ def callback(ch, method, props, body):
 
     # Acknowledge message
     ch.basic_ack(method.delivery_tag)
+    
 
 if __name__ == "__main__":
+    start_http_server(9090)
     if not os.path.exists("/var/secrets/google/gcp-key.json"):
         raise FileNotFoundError("Missing /var/secrets/google/gcp-key.json for Google credentials")
 

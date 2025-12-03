@@ -5,3 +5,4 @@ redis
 pika
 datetime
 jinja2
+prometheus_client

@@ -1,3 +1,4 @@
 requests
 pika
 python-dotenv
+prometheus_client

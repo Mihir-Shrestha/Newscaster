@@ -3,9 +3,11 @@ import json
 import time
 import pika
 from openai import OpenAI
+from prometheus_client import Counter, start_http_server
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 RABBIT = "rabbitmq"
+JOBS_PROCESSED = Counter("jobs_processed_total", "Jobs processed")      
 
 def connect_rabbit():
     while True:
@@ -45,6 +47,7 @@ def make_podcast_script(articles):
     return res.choices[0].message.content
 
 def callback(ch, method, props, body):
+    JOBS_PROCESSED.inc()
     data = json.loads(body)
     job_id = data["job_id"]
     articles = data["articles"]
@@ -64,6 +67,7 @@ def callback(ch, method, props, body):
     ch.basic_ack(method.delivery_tag)
 
 if __name__ == "__main__":
+    start_http_server(9090)
     conn = connect_rabbit()
     ch = conn.channel()
 

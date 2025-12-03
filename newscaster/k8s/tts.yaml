@@ -29,9 +29,23 @@ spec:
           mountPath: /var/secrets/google
         - name: output
           mountPath: /output
+        ports:
+        - containerPort: 9090
       volumes:
       - name: gcp-secret
         secret:
           secretName: gcp-sa-key
       - name: output
         emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tts
+spec:
+  selector:
+    app: tts
+  ports:
+  - port: 9090
+    targetPort: 9090
