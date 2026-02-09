@@ -124,10 +124,10 @@ Grafana dashboards visualize performance in real-time.
 ## Capabilities & Limitations
 
 ### Capabilities
-✅ Fully automated daily podcast generation (6 AM + manual)  
-✅ Modular microservices architecture  
-✅ Cloud-native with K8s auto-scaling  
-✅ Observable with Prometheus/Grafana  
+- Fully automated daily podcast generation (6 AM + manual)  
+- Modular microservices architecture  
+- Cloud-native with K8s auto-scaling  
+- Observable with Prometheus/Grafana  
 
 ### Known Limitations
 
