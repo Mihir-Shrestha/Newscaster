@@ -139,4 +139,3 @@ Grafana dashboards visualize performance in real-time.
 
 ---
 
-**Built for:** CSCI 5253 - Cloud Computing Project (Fall 2025)
