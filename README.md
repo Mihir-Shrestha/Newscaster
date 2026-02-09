@@ -30,6 +30,8 @@ Built as a distributed microservices architecture demonstrating message queues, 
 
 ### Data Flow
 
+![Newscaster Data Flow](./assets/NewsCaster%20AI.png)
+
 ```
 1. Trigger (manual or 6 AM CronJob)
    ↓
