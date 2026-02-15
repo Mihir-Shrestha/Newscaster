@@ -13,19 +13,19 @@ services:
       - "6379:6379"
 
   fetcher:
-    build: ./fetcher
+    build: newscaster/fetcher
     env_file: .env
     depends_on:
       - rabbitmq
 
   summarizer:
-    build: ./summarizer
+    build: newscaster/summarizer
     env_file: .env
     depends_on:
       - rabbitmq
 
   tts:
-    build: ./tts
+    build: newscaster/tts
     volumes:
       - ./output:/output
       - ./secrets:/secrets
@@ -33,7 +33,7 @@ services:
       - rabbitmq
 
   api:
-    build: ./api
+    build: newscaster/api
     container_name: api
     ports:
       - "8000:8000"
