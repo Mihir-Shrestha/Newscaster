@@ -1,0 +1,50 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  redis:
+    image: redis:6.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  fetcher:
+    build: ./fetcher
+    env_file: .env
+    depends_on:
+      - rabbitmq
+
+  summarizer:
+    build: ./summarizer
+    env_file: .env
+    depends_on:
+      - rabbitmq
+
+  tts:
+    build: ./tts
+    volumes:
+      - ./output:/output
+      - ./secrets:/secrets
+    depends_on:
+      - rabbitmq
+
+  api:
+    build: ./api
+    container_name: api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api/templates:/app/templates
+      - ./api/static:/app/static
+      - ./output:/output
+    environment:
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_QUEUE=to_fetcher
+    depends_on:
+      - redis
+      - rabbitmq
