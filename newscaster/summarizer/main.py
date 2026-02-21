@@ -2,11 +2,13 @@ import os
 import json
 import time
 import pika
-from openai import OpenAI
+import requests
 from prometheus_client import Counter, start_http_server
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 RABBIT = "rabbitmq"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_TIMEOUT_SEC = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))
 JOBS_PROCESSED = Counter("jobs_processed_total", "Jobs processed")      
 
 def connect_rabbit():
@@ -20,15 +22,31 @@ def connect_rabbit():
             time.sleep(2)
 
 PODCAST_PROMPT = """
-You are an engaging podcast host. Create a single cohesive podcast script summarizing ALL the news stories below.
-Requirements:
-- Start with a warm, conversational INTRO (2-3 sentences)
-- Explain each story clearly (no bullets)
-- Use smooth transitions between topics
-- Keep tone human, modern, similar to NPR or The Daily
-- End with a short OUTRO thanking the listener
-- No mention of being AI
-- Output only the final script
+Create one continuous, ready-for-TTS podcast script that summarizes ALL provided news stories.
+
+REQUIREMENTS:
+- Begin with a warm 2-3 sentence introduction that explicitly names the podcast "Newscaster" in the first sentence and sounds natural for spoken audio.
+- Cover every story clearly in flowing paragraph form (no bullets).
+- Use smooth transitions so the script sounds like one episode.
+- Keep a human, modern, daily-news tone.
+- End with a short closing thank-you.
+- No mention of being AI.
+
+SOURCE ATTRIBUTION (MANDATORY):
+- For each story, explicitly mention the outlet/source once.
+- Use natural attribution in the sentence, e.g. "According to CBS News..." or "...reports from WHYY say..."
+- Ensure all listed stories include their matching source attribution.
+
+OUTPUT RULES:
+- Output only the final narration text.
+- No labels like "Host:".
+- No bracketed markers like [INTRO]/[OUTRO].
+- No stage directions, markdown, bullets, or numbering.
+
+LENGTH:
+- Target 360-460 words (roughly 2-3 minutes for TTS).
+
+Return only the final script.
 """
 
 def make_podcast_script(articles):
@@ -36,15 +54,19 @@ def make_podcast_script(articles):
         f"TITLE: {a['title']}\nCONTENT: {a['content']}" for a in articles
     )
 
-    res = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": PODCAST_PROMPT},
-            {"role": "user", "content": combined_text}
-        ]
+    prompt = f"{PODCAST_PROMPT}\n\nNEWS STORIES:\n{combined_text}\n\nFINAL SCRIPT:"
+    resp = requests.post(
+        f"{OLLAMA_URL}/api/generate",
+        json={
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False
+        },
+        timeout=OLLAMA_TIMEOUT_SEC
     )
-
-    return res.choices[0].message.content
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get("response", "").strip()
 
 def callback(ch, method, props, body):
     JOBS_PROCESSED.inc()

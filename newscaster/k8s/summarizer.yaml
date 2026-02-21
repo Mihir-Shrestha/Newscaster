@@ -17,13 +17,12 @@ spec:
         image: newscaster-summarizer:latest
         imagePullPolicy: Never
         env:
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: newscaster-api-secrets
-              key: OPENAI_API_KEY
         - name: RABBITMQ_HOST
           value: "rabbitmq"
+        - name: OLLAMA_URL
+          value: "http://ollama:11434"
+        - name: OLLAMA_MODEL
+          value: "llama3.2:3b"
         ports:
         - containerPort: 9090
 ---

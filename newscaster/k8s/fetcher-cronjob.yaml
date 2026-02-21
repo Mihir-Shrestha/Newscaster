@@ -4,8 +4,12 @@ metadata:
   name: fetcher-cron
 spec:
   schedule: "0 6 * * *"
+  timeZone: "America/Denver"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 300
       template:
         spec:
           restartPolicy: Never

@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      initContainers:
+      - name: model-bootstrap
+        image: ollama/ollama:latest
+        env:
+        - name: OLLAMA_MODEL
+          value: "llama3.2:3b"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            ollama serve >/tmp/ollama.log 2>&1 &
+            for i in $(seq 1 60); do
+              ollama list >/dev/null 2>&1 && break
+              sleep 2
+            done
+            ollama list | grep -q "${OLLAMA_MODEL}" || ollama pull "${OLLAMA_MODEL}"
+            pkill ollama || true
+        volumeMounts:
+        - name: ollama-models
+          mountPath: /root/.ollama
+      containers:
+      - name: ollama
+        image: ollama/ollama:latest
+        ports:
+        - containerPort: 11434
+        volumeMounts:
+        - name: ollama-models
+          mountPath: /root/.ollama
+      volumes:
+      - name: ollama-models
+        persistentVolumeClaim:
+          claimName: ollama-models-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models-pvc
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+  - port: 11434
+    targetPort: 11434
