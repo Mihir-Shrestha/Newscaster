@@ -1,40 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>NewsCaster AI</title>
-    <link rel="stylesheet" href="/static/style.css" />
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Newscaster</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
-
 <body>
-    <nav class="navbar">
-        <span>🎙️ Newscaster</span>
-        <div class="navbar-user">
-        {% if user %}
-            <span>{{ user.email }}</span>
-            <a href="/auth/logout" class="btn-logout">Logout</a>
-        {% else %}
-            <a href="/login" class="btn-logout">Login</a>
-        {% endif %}
-        </div>
-    </nav>
-    <div class="container">
+  <nav class="navbar">
+    <span>🎙️ Newscaster</span>
+    <div class="navbar-user">
+      {% if user %}
+        <span>{{ user.email }}</span>
+        <a href="/auth/logout" class="btn-logout">Logout</a>
+      {% else %}
+        <a href="/login" class="btn-logout">Login</a>
+      {% endif %}
+    </div>
+  </nav>
 
-        <h1>NewsCaster AI</h1>
-        <p>Your daily automatically generated AI news podcast.</p>
+  <div class="container">
+    {% if user %}
 
-        {% if user %}
-        <button id="generateBtn" onclick="generateEpisode()">🎙️ Generate New Episode</button>
-        {% else %}
-        <a href="/login" class="btn-login-prompt">🔒 Login to Generate Episodes</a>
-        {% endif %}
-        <p id="status"></p>
-
-        <h2>Episodes</h2>
-        <div id="episodes"></div>
-
+    <div class="generate-section">
+      <button id="generate-btn" class="btn-primary" onclick="generateEpisode()">
+        🎙️ Generate New Episode
+      </button>
+      <span id="generate-status"></span>
     </div>
 
-    <script src="/static/app.js"></script>
+    <div class="search-section">
+      <div class="search-row">
+        <input type="text" id="search-query" placeholder="Search episodes..." />
+        <input type="date" id="from-date" />
+        <input type="date" id="to-date" />
+        <button id="search-btn" class="btn-primary" onclick="searchEpisodes()">
+          🔍 Search
+        </button>
+        <button class="btn-clear" onclick="clearSearch()">✕ Clear</button>
+      </div>
+    </div>
+
+    <div id="episodes-list">
+      <p>Loading episodes...</p>
+    </div>
+
+    {% else %}
+    <div class="hero">
+      <h2>Your AI-powered news podcast</h2>
+      <p>Sign in to listen to the latest AI-generated news episodes.</p>
+      <a href="/login" class="btn-primary">Get Started</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>

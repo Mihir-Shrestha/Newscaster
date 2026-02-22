@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import redis
 import pika
 import psycopg2
-from fastapi import FastAPI, Request, Response, Form, Cookie
+from fastapi import FastAPI, Request, Response, Form, Cookie, Query
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse
 )
@@ -18,15 +18,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from prometheus_client import Counter, generate_latest
 
-# ---------------------------------------------------------------------------
-# DB migrations on startup
-# ---------------------------------------------------------------------------
 sys.path.insert(0, "/app/db")
 from migrate import run_migrations
 from auth import (
     create_access_token, decode_access_token,
     create_user_with_password, get_local_identity,
-    verify_password, upsert_google_user, get_user_by_id
+    verify_password, upsert_google_user,
+    get_user_by_email, get_user_by_id
 )
 
 MIGRATIONS_DIR = "/app/db/migrations"
@@ -43,21 +41,21 @@ app = FastAPI()
 @app.on_event("startup")
 def on_startup():
     run_migrations(MIGRATIONS_DIR)
-    # Auto cleanup every 6 hours
     t = threading.Thread(target=_scheduled_cleanup, daemon=True)
     t.start()
 
 # Redis client
 r = redis.Redis(host="redis", port=6379, decode_responses=True)
-
 templates = Jinja2Templates(directory="/app/templates")
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
-
 REQUEST_COUNT = Counter("api_request_count", "Total API Requests")
 
 # ---------------------------------------------------------------------------
-# Auth helpers
+# Helpers
 # ---------------------------------------------------------------------------
+def get_db():
+    return psycopg2.connect(os.environ["DATABASE_URL"])
+
 def get_current_user(request: Request) -> dict | None:
     token = request.cookies.get("access_token")
     if not token:
@@ -70,15 +68,6 @@ def require_user(request: Request) -> dict | None:
         return None
     return user
 
-# ---------------------------------------------------------------------------
-# DB connection helper
-# ---------------------------------------------------------------------------
-def get_db():
-    return psycopg2.connect(os.environ["DATABASE_URL"])
-
-# ---------------------------------------------------------------------------
-# RabbitMQ helper
-# ---------------------------------------------------------------------------
 def send_job_to_queue():
     connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
     channel = connection.channel()
@@ -88,6 +77,16 @@ def send_job_to_queue():
     channel.basic_publish(exchange="", routing_key="to_fetcher", body=json.dumps(payload))
     connection.close()
     return job_id
+
+def format_episode_row(row) -> dict:
+    """Convert a Postgres episodes row to a clean dict."""
+    return {
+        "id":           str(row[0]),
+        "title":        row[1],
+        "published_at": row[2].isoformat() if row[2] else None,
+        "gcs_url":      row[3],
+        "headlines":    row[4] if row[4] else [],
+    }
 
 # ===========================================================================
 # PUBLIC ROUTES (no auth required)
@@ -132,6 +131,14 @@ def signup(
             "request": request,
             "error": "Email already registered. Please log in."
         })
+    
+    existing_user = get_user_by_email(email)
+    if existing_user:
+        return templates.TemplateResponse("signup.html", {
+            "request": request,
+            "error": "This email is linked to a Google account. Please sign in with Google."
+        })
+    
     try:
         user = create_user_with_password(email, display_name, password)
         token = create_access_token(user["id"], user["email"])
@@ -139,9 +146,10 @@ def signup(
         response.set_cookie("access_token", token, httponly=True, max_age=3600)
         return response
     except Exception as e:
+        print(f"[signup] ERROR: {str(e)}")
         return templates.TemplateResponse("signup.html", {
             "request": request,
-            "error": f"Signup failed: {str(e)}"
+            "error": "Something went wrong. Please try again."
         })
 
 @app.post("/auth/login")
@@ -193,17 +201,14 @@ def google_callback(request: Request, code: str = None, error: str = None):
     })
     token_data = token_resp.json()
     access_token = token_data.get("access_token")
-
     if not access_token:
         return RedirectResponse("/login?error=google_token_failed")
 
-    # Get user info from Google
     userinfo_resp = ext_requests.get(
         GOOGLE_USERINFO_URL,
         headers={"Authorization": f"Bearer {access_token}"}
     )
     userinfo = userinfo_resp.json()
-
     email        = userinfo.get("email")
     display_name = userinfo.get("name", email)
     google_id    = userinfo.get("sub")
@@ -213,7 +218,6 @@ def google_callback(request: Request, code: str = None, error: str = None):
 
     user = upsert_google_user(email, display_name, google_id)
     jwt_token = create_access_token(user["id"], user["email"])
-
     response = RedirectResponse("/", status_code=302)
     response.set_cookie("access_token", jwt_token, httponly=True, max_age=3600)
     return response
@@ -223,14 +227,103 @@ def google_callback(request: Request, code: str = None, error: str = None):
 # ===========================================================================
 @app.get("/episodes")
 def get_episodes(request: Request):
+    """List all episodes from Postgres (source of truth)."""
     REQUEST_COUNT.inc()
     user = require_user(request)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    ids = r.lrange("episodes", 0, -1)
-    episodes = [r.hgetall(f"episode:{eid}") for eid in ids]
-    return {"episodes": episodes}
 
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, title, published_at, gcs_url, headlines
+            FROM episodes
+            ORDER BY published_at DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {"episodes": [format_episode_row(r) for r in rows]}
+    except Exception as e:
+        print(f"[episodes] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch episodes"}, status_code=500)
+
+@app.get("/episodes/search")
+def search_episodes(
+    request: Request,
+    q: str = Query(None, description="Search query"),
+    from_date: str = Query(None, description="Start date YYYY-MM-DD"),
+    to_date: str = Query(None, description="End date YYYY-MM-DD")
+):
+    """
+    Full-text search across episode titles, transcripts and headlines.
+    Supports optional date range filtering.
+    GET /episodes/search?q=elections&from_date=2026-01-01&to_date=2026-02-22
+    """
+    REQUEST_COUNT.inc()
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    if not q and not from_date and not to_date:
+        return JSONResponse({"error": "Provide at least one of: q, from_date, to_date"}, status_code=400)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Build query dynamically based on filters provided
+        conditions = []
+        params = []
+
+        if q:
+            conditions.append("search_vector @@ plainto_tsquery('english', %s)")
+            params.append(q)
+
+        if from_date:
+            conditions.append("published_at >= %s")
+            params.append(from_date)
+
+        if to_date:
+            conditions.append("published_at <= %s")
+            params.append(to_date)
+
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+        # If keyword search, rank by relevance; otherwise by date
+        order_clause = (
+            "ORDER BY ts_rank(search_vector, plainto_tsquery('english', %s)) DESC"
+            if q else
+            "ORDER BY published_at DESC"
+        )
+        if q:
+            params.append(q)
+
+        query = f"""
+            SELECT id, title, published_at, gcs_url, headlines
+            FROM episodes
+            {where_clause}
+            {order_clause}
+        """
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return {
+            "query": q,
+            "from_date": from_date,
+            "to_date": to_date,
+            "total": len(rows),
+            "results": [format_episode_row(r) for r in rows]
+        }
+
+    except Exception as e:
+        print(f"[search] ERROR: {e}")
+        return JSONResponse({"error": "Search failed"}, status_code=500)
+    
 @app.get("/episodes/{eid}/audio")
 def get_audio(request: Request, eid: str):
     REQUEST_COUNT.inc()
@@ -239,6 +332,18 @@ def get_audio(request: Request, eid: str):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
     gcs_url = r.hget(f"episode:{eid}", "gcs_url")
     if not gcs_url:
+        # Fallback to Postgres if not in Redis
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT gcs_url FROM episodes WHERE id = %s", (eid,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row:
+                return RedirectResponse(row[0])
+        except Exception:
+            pass
         return JSONResponse({"error": "Episode not found"}, status_code=404)
     return RedirectResponse(gcs_url)
 
@@ -257,10 +362,25 @@ def latest_episode(request: Request):
     user = require_user(request)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    eid = r.get("latest_episode")
-    if not eid:
-        return {"status": "no episodes yet"}
-    return r.hgetall(f"episode:{eid}")
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, title, published_at, gcs_url, headlines
+            FROM episodes
+            ORDER BY published_at DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return {"status": "no episodes yet"}
+        return format_episode_row(row)
+    except Exception as e:
+        print(f"[latest] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch latest episode"}, status_code=500)
 
 @app.get("/rss.xml")
 def rss_feed(request: Request):
@@ -268,25 +388,39 @@ def rss_feed(request: Request):
     user = require_user(request)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
-    ids = r.lrange("episodes", 0, -1)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, title, published_at, gcs_url, headlines
+            FROM episodes
+            ORDER BY published_at DESC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[rss] ERROR: {e}")
+        return JSONResponse({"error": "Failed to generate RSS"}, status_code=500)
+
     items = []
-    for eid in ids:
-        ep = r.hgetall(f"episode:{eid}")
-        if not ep:
-            continue
-        pub_date = datetime.fromtimestamp(
-            int(ep["timestamp"]), tz=timezone.utc
-        ).strftime("%a, %d %b %Y %H:%M:%S GMT")
-        audio_url = f"http://localhost:8000/episodes/{eid}/audio"
+    for row in rows:
+        ep = format_episode_row(row)
+        pub_date = datetime.fromisoformat(ep["published_at"]).strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        ) if ep["published_at"] else ""
+        audio_url = f"http://localhost:8000/episodes/{ep['id']}/audio"
         item = f"""
         <item>
             <title>{ep['title']}</title>
             <description>{json.dumps(ep['headlines'])}</description>
             <enclosure url="{audio_url}" type="audio/mpeg" />
-            <guid>{eid}</guid>
+            <guid>{ep['id']}</guid>
             <pubDate>{pub_date}</pubDate>
         </item>"""
         items.append(item)
+
     rss = f"""<rss version="2.0">
       <channel>
         <title>NewsCaster AI</title>

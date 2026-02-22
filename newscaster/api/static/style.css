@@ -158,3 +158,124 @@
   font-size: 1rem;
   user-select: none;
 }
+
+.search-section {
+  margin: 1.5rem 0;
+}
+
+.search-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search-row input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #2a2a3e;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.search-row input[type="date"] {
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #2a2a3e;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.btn-clear {
+  padding: 0.65rem 1rem;
+  background: transparent;
+  border: 1px solid #555;
+  color: #aaa;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-clear:hover {
+  background: #333;
+}
+
+.episode-card {
+  background: #1e1e2e;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  border: 1px solid #2a2a3e;
+}
+
+.episode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.episode-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.episode-date {
+  color: #888;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  margin-left: 1rem;
+}
+
+.headlines {
+  color: #bbb;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 1rem 1rem;
+  padding: 0;
+}
+
+.headlines li {
+  margin-bottom: 0.25rem;
+}
+
+audio {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.generate-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+#generate-status {
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.hero {
+  text-align: center;
+  margin-top: 5rem;
+}
+
+.hero h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.hero p {
+  color: #aaa;
+  margin-bottom: 2rem;
+}
+
+.btn-primary:disabled {
+  background: #444;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
