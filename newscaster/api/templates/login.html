@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login - Newscaster</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="auth-container">
+    <h1>🎙️ Newscaster</h1>
+    <h2>Sign In</h2>
+
+    {% if error %}
+    <div class="error-box">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/auth/login">
+      <input type="email" name="email" placeholder="Email" required />
+      <div class="password-wrapper">
+        <input type="password" name="password" id="login-password" placeholder="Password" required />
+        <span class="eye-btn" onclick="togglePassword('login-password', this)">👁</span>
+      </div>
+      <button type="submit" class="btn-primary">Sign In</button>
+    </form>
+
+    <div class="divider">or</div>
+
+    <a href="/auth/google" class="btn-google">
+      <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" />
+      Continue with Google
+    </a>
+
+    <p class="auth-footer">
+      Don't have an account? <a href="/signup">Sign up</a>
+    </p>
+  </div>
+
+  <script>
+    function togglePassword(fieldId, btn) {
+      const field = document.getElementById(fieldId);
+      if (field.type === "password") {
+        field.type = "text";
+        btn.textContent = "🙈";
+      } else {
+        field.type = "password";
+        btn.textContent = "👁";
+      }
+    }
+  </script>
+</body>
+</html>

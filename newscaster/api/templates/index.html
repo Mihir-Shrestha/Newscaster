@@ -7,12 +7,27 @@
 </head>
 
 <body>
+    <nav class="navbar">
+        <span>🎙️ Newscaster</span>
+        <div class="navbar-user">
+        {% if user %}
+            <span>{{ user.email }}</span>
+            <a href="/auth/logout" class="btn-logout">Logout</a>
+        {% else %}
+            <a href="/login" class="btn-logout">Login</a>
+        {% endif %}
+        </div>
+    </nav>
     <div class="container">
 
         <h1>NewsCaster AI</h1>
         <p>Your daily automatically generated AI news podcast.</p>
 
-        <button id="generateBtn">Generate New Episode</button>
+        {% if user %}
+        <button id="generateBtn" onclick="generateEpisode()">🎙️ Generate New Episode</button>
+        {% else %}
+        <a href="/login" class="btn-login-prompt">🔒 Login to Generate Episodes</a>
+        {% endif %}
         <p id="status"></p>
 
         <h2>Episodes</h2>

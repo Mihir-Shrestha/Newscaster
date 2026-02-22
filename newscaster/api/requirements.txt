@@ -9,3 +9,8 @@ prometheus_client
 psycopg2-binary
 migrate
 requests
+passlib[bcrypt]
+bcrypt==4.0.1
+python-jose[cryptography]
+httpx
+python-multipart

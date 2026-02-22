@@ -81,6 +81,7 @@ services:
       context: .
       dockerfile: api/Dockerfile
     container_name: api
+    env_file: .env
     ports:
       - "8000:8000"
     volumes:

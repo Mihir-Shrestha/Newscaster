@@ -1,5 +1,10 @@
 async function loadEpisodes() {
     const res = await fetch("/episodes");
+    if (res.status === 401) {
+        document.getElementById("episodes-list").innerHTML = 
+            '<p><a href="/login">Login to view episodes</a></p>';
+        return;
+    }
     const data = await res.json();
     const container = document.getElementById("episodes");
 

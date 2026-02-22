@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up - Newscaster</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="auth-container">
+    <h1>🎙️ Newscaster</h1>
+    <h2>Create Account</h2>
+
+    {% if error %}
+    <div class="error-box">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/auth/signup" onsubmit="return checkPasswords()">
+      <input type="text" name="display_name" placeholder="Your Name" required />
+      <input type="email" name="email" placeholder="Email" required />
+      <div class="password-wrapper">
+        <input type="password" name="password" id="password" placeholder="Password (min 8 chars)" required minlength="8" />
+        <span class="eye-btn" onclick="togglePassword('password', this)">👁</span>
+      </div>
+      <div class="password-wrapper">
+        <input type="password" id="confirm_password" placeholder="Confirm Password" required minlength="8" />
+        <span class="eye-btn" onclick="togglePassword('confirm_password', this)">👁</span>
+      </div>
+      <div id="password-error" class="error-box" style="display:none;">Passwords do not match.</div>
+      <button type="submit" class="btn-primary">Create Account</button>
+    </form>
+
+    <div class="divider">or</div>
+
+    <a href="/auth/google" class="btn-google">
+      <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" />
+      Continue with Google
+    </a>
+
+    <p class="auth-footer">
+      Already have an account? <a href="/login">Sign in</a>
+    </p>
+  </div>
+
+  <script>
+    function togglePassword(fieldId, btn) {
+      const field = document.getElementById(fieldId);
+      if (field.type === "password") {
+        field.type = "text";
+        btn.textContent = "🙈";
+      } else {
+        field.type = "password";
+        btn.textContent = "👁";
+      }
+    }
+
+    function checkPasswords() {
+      const pw = document.getElementById("password").value;
+      const cpw = document.getElementById("confirm_password").value;
+      const errBox = document.getElementById("password-error");
+      if (pw !== cpw) {
+        errBox.style.display = "block";
+        return false;
+      }
+      errBox.style.display = "none";
+      return true;
+    }
+  </script>
+</body>
+</html>
