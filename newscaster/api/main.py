@@ -2,6 +2,8 @@ import os
 import sys
 import json
 import redis
+import requests
+import psycopg2
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -36,7 +38,15 @@ app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 # Metrics
 REQUEST_COUNT = Counter("api_request_count", "Total API Requests")
 
+# ---------------------------------------------------------------------------
+# DB connection helper
+# ---------------------------------------------------------------------------
+def get_db():
+    return psycopg2.connect(os.environ["DATABASE_URL"])
+
+# ---------------------------------------------------------------------------
 # RabbitMQ connection helper
+# ---------------------------------------------------------------------------
 def send_job_to_queue():
     connection = pika.BlockingConnection(pika.ConnectionParameters("rabbitmq"))
     channel = connection.channel()
@@ -75,7 +85,6 @@ def get_audio(eid: str):
     gcs_url = r.hget(f"episode:{eid}", "gcs_url")
     if not gcs_url:
         return JSONResponse({"error": "Episode not found"}, status_code=404)
-
     return RedirectResponse(gcs_url)
 
 @app.post("/generate")
@@ -128,5 +137,66 @@ def rss_feed():
       </channel>
     </rss>
     """
-
     return Response(content=rss, media_type="application/xml")
+
+# ---------------------------------------------------------------------------
+# GCS Health Check + Cleanup
+# ---------------------------------------------------------------------------
+@app.post("/admin/cleanup")
+def cleanup_broken_episodes():
+    """
+    Checks every episode's GCS URL. Removes broken ones from Postgres + Redis.
+    """
+    removed = []
+    kept = []
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, gcs_url FROM episodes")
+        rows = cur.fetchall()
+
+        for episode_id, gcs_url in rows:
+            try:
+                resp = requests.head(gcs_url, timeout=5)
+                if resp.status_code == 200:
+                    kept.append(str(episode_id))
+                else:
+                    # GCS file is gone or URL expired — remove everywhere
+                    _remove_episode(cur, str(episode_id))
+                    removed.append(str(episode_id))
+            except Exception as e:
+                print(f"[cleanup] ERROR checking {episode_id}: {e}")
+                _remove_episode(cur, str(episode_id))
+                removed.append(str(episode_id))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+    return {
+        "removed": removed,
+        "kept": kept,
+        "total_checked": len(rows),
+        "total_removed": len(removed)
+    }
+
+def _remove_episode(cur, episode_id: str):
+    """Remove episode from Postgres and Redis."""
+    # Postgres
+    cur.execute("DELETE FROM episodes WHERE id = %s", (episode_id,))
+    print(f"[cleanup] removed {episode_id} from Postgres")
+
+    # Redis
+    r.lrem("episodes", 0, episode_id)
+    r.delete(f"episode:{episode_id}")
+
+    # Clear latest_episode if it was this one
+    latest = r.get("latest_episode")
+    if latest == episode_id:
+        r.delete("latest_episode")
+
+    print(f"[cleanup] removed {episode_id} from Redis")
