@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import redis
 from fastapi import FastAPI, Request, Response
@@ -11,7 +12,19 @@ import uuid
 from datetime import datetime, timezone
 from prometheus_client import Counter, generate_latest
 
+# ---------------------------------------------------------------------------
+# DB migrations on startup
+# ---------------------------------------------------------------------------
+sys.path.insert(0, "/app/db")
+from migrate import run_migrations
+
+MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "db", "migrations")
+
 app = FastAPI()
+
+@app.on_event("startup")
+def on_startup():
+    run_migrations(MIGRATIONS_DIR)
 
 # Redis client
 r = redis.Redis(host="redis", port=6379, decode_responses=True)

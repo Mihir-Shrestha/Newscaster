@@ -12,6 +12,24 @@ services:
     ports:
       - "6379:6379"
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    env_file: .env
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   fetcher:
     build: ./fetcher
     env_file: .env
@@ -25,6 +43,14 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        echo "Waiting for Ollama..."
+        until ollama list > /dev/null 2>&1; do sleep 2; done
+        ollama list | grep -q "llama3.2:3b" || ollama pull llama3.2:3b
+        wait
 
   summarizer:
     build: ./summarizer
@@ -37,15 +63,23 @@ services:
       - ollama
 
   tts:
-    build: ./tts
+    build:
+      context: .
+      dockerfile: tts/Dockerfile
+    env_file: .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./output:/output
-      - ./secrets:/secrets
+      - ./secrets:/var/secrets/google
     depends_on:
       - rabbitmq
+      - postgres
 
   api:
-    build: ./api
+    build:
+      context: .
+      dockerfile: api/Dockerfile
     container_name: api
     ports:
       - "8000:8000"
@@ -57,9 +91,12 @@ services:
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_QUEUE=to_fetcher
+      - DATABASE_URL=${DATABASE_URL}
     depends_on:
       - redis
       - rabbitmq
+      - postgres
 
 volumes:
   ollama_data:
+  postgres_data:

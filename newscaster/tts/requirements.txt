@@ -5,3 +5,4 @@ python-dotenv
 pydub
 redis
 prometheus_client
+psycopg2-binary

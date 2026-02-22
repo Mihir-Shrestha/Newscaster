@@ -6,3 +6,4 @@ pika
 datetime
 jinja2
 prometheus_client
+psycopg2-binary

@@ -53,7 +53,6 @@ def make_podcast_script(articles):
     combined_text = "\n\n".join(
         f"TITLE: {a['title']}\nCONTENT: {a['content']}" for a in articles
     )
-
     prompt = f"{PODCAST_PROMPT}\n\nNEWS STORIES:\n{combined_text}\n\nFINAL SCRIPT:"
     resp = requests.post(
         f"{OLLAMA_URL}/api/generate",
@@ -76,17 +75,24 @@ def callback(ch, method, props, body):
 
     print(f"Summarizer: generating podcast script for job {job_id}...")
 
-    script = make_podcast_script(articles)
-    headlines = [art["title"] for art in articles]
+    try:
+        script = make_podcast_script(articles)
+        headlines = [art["title"] for art in articles]
 
-    out = {
-        "job_id": job_id,
-        "podcast_script": script,
-        "headlines": headlines
-    }
+        out = {
+            "job_id": job_id,
+            "podcast_script": script,
+            "headlines": headlines
+        }
 
-    ch.basic_publish(exchange="", routing_key="to_tts", body=json.dumps(out))
-    ch.basic_ack(method.delivery_tag)
+        ch.basic_publish(exchange="", routing_key="to_tts", body=json.dumps(out))
+        ch.basic_ack(method.delivery_tag)
+        print(f"Summarizer: job {job_id} done OK")
+
+    except Exception as e:
+        print(f"Summarizer: ERROR on job {job_id}: {e}")
+        # Discard the message — do NOT requeue so it doesn't loop forever
+        ch.basic_nack(method.delivery_tag, requeue=False)
 
 if __name__ == "__main__":
     start_http_server(9090)

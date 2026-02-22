@@ -24,6 +24,11 @@ spec:
             secretKeyRef:
               name: gcs-bucket
               key: BUCKET_NAME
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-app
+              key: DATABASE_URL
         volumeMounts:
         - name: gcp-secret
           mountPath: /var/secrets/google
