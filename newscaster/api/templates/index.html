@@ -7,52 +7,131 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <nav class="navbar">
-    <span>🎙️ Newscaster</span>
-    <div class="navbar-user">
-      {% if user %}
-        <span>{{ user.email }}</span>
-        <a href="/auth/logout" class="btn-logout">Logout</a>
-      {% else %}
-        <a href="/login" class="btn-logout">Login</a>
-      {% endif %}
-    </div>
-  </nav>
+  {% if user %}
+  <div class="app-layout">
 
-  <div class="container">
-    {% if user %}
-
-    <div class="generate-section">
-      <button id="generate-btn" class="btn-primary" onclick="generateEpisode()">
-        🎙️ Generate New Episode
-      </button>
-      <span id="generate-status"></span>
-    </div>
-
-    <div class="search-section">
-      <div class="search-row">
-        <input type="text" id="search-query" placeholder="Search episodes..." />
-        <input type="date" id="from-date" />
-        <input type="date" id="to-date" />
-        <button id="search-btn" class="btn-primary" onclick="searchEpisodes()">
-          🔍 Search
-        </button>
-        <button class="btn-clear" onclick="clearSearch()">✕ Clear</button>
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar">
+      <!-- Logo -->
+      <div class="sidebar-logo" onclick="loadEpisodes()">
+        <img src="/static/logo.png" alt="Newscaster" class="logo-img" />
+        <span>Newscaster</span>
       </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Library header -->
+      <div class="sidebar-header">
+        <span>Your Library</span>
+        <button class="btn-icon" title="Create playlist" onclick="showCreatePlaylist()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Create playlist form -->
+      <div id="create-playlist-form" class="create-playlist-form" style="display:none;">
+        <input type="text" id="new-playlist-name" placeholder="Playlist name..."
+               maxlength="80" onkeydown="if(event.key==='Enter') createPlaylist()" />
+        <div class="form-actions">
+          <button class="btn-small btn-primary" onclick="createPlaylist()">Create</button>
+          <button class="btn-small btn-clear-small" onclick="hideCreatePlaylist()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Playlist list -->
+      <div id="playlist-list">
+        <p class="sidebar-empty">No playlists yet.</p>
+      </div>
+
+      <!-- User footer -->
+      <div class="sidebar-footer">
+        <span class="sidebar-user-email">{{ user.email }}</span>
+        <a href="/auth/logout" class="btn-logout">Sign out</a>
+      </div>
+    </aside>
+
+    <!-- RIGHT SIDE -->
+    <div class="main-wrapper">
+
+      <!-- TOP NAV BAR -->
+      <header class="topbar">
+
+        <!-- Left: Home button -->
+        <div class="topbar-left">
+          <button class="topbar-home-btn" onclick="loadEpisodes()" title="Home">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Center: Search + filters -->
+        <div class="topbar-center">
+          <div class="search-bar-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21 19l-4.35-4.35A7.5 7.5 0 1 0 15 16.65L19.35 21 21 19zM10.5 16a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
+            </svg>
+            <input type="text" id="search-query" placeholder="Search episodes..." />
+          </div>
+          <input type="date" id="from-date" class="date-input" />
+          <input type="date" id="to-date"   class="date-input" />
+          <button id="search-btn" class="btn-topbar-action" onclick="searchEpisodes()">Search</button>
+          <button class="btn-topbar-clear" onclick="clearSearch()">Clear</button>
+        </div>
+
+        <!-- Right: Generate + user -->
+        <div class="topbar-right">
+          <button id="generate-btn" class="btn-generate" onclick="generateEpisode()">
+            Generate Episode
+          </button>
+          <span id="generate-status"></span>
+        </div>
+
+      </header>
+
+      <!-- MAIN CONTENT -->
+      <main class="main-content">
+
+        <div class="content-heading">
+          <h2 id="content-title">All Episodes</h2>
+          <div id="playlist-actions" style="display:none;">
+            <button class="btn-small btn-outline" onclick="renamePlaylistPrompt()">Rename</button>
+            <button class="btn-small btn-outline" onclick="sharePlaylist()">Share</button>
+            <button class="btn-small btn-danger-outline" onclick="deletePlaylist()">Delete</button>
+          </div>
+        </div>
+
+        <!-- Share link box -->
+        <div id="share-box" class="share-box" style="display:none;">
+          <span id="share-url"></span>
+          <button class="btn-small btn-outline" onclick="copyShareLink()">Copy Link</button>
+          <button class="btn-small btn-danger-outline" onclick="revokeShare()">Revoke</button>
+        </div>
+
+        <div id="episodes-list">
+          <p>Loading episodes...</p>
+        </div>
+
+      </main>
     </div>
 
-    <div id="episodes-list">
-      <p>Loading episodes...</p>
-    </div>
-
-    {% else %}
-    <div class="hero">
-      <h2>Your AI-powered news podcast</h2>
-      <p>Sign in to listen to the latest AI-generated news episodes.</p>
-      <a href="/login" class="btn-primary">Get Started</a>
-    </div>
-    {% endif %}
   </div>
+
+  {% else %}
+  <div class="landing">
+    <div class="landing-nav">
+      <span class="landing-logo">Newscaster</span>
+      <a href="/login" class="btn-primary-sm">Log in</a>
+    </div>
+    <div class="hero">
+      <h1>Your AI-powered<br/>news podcast</h1>
+      <p>Daily episodes generated from today's top headlines.</p>
+      <a href="/login" class="btn-hero">Get Started Free</a>
+    </div>
+  </div>
+  {% endif %}
 
   <script src="/static/app.js"></script>
 </body>

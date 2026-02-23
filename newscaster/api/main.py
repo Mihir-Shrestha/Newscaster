@@ -66,6 +66,9 @@ def require_user(request: Request) -> dict | None:
     user = get_current_user(request)
     if not user:
         return None
+    # JWT uses "sub" for user ID — normalize to "id" for consistency
+    if "sub" in user and "id" not in user:
+        user["id"] = user["sub"]
     return user
 
 def send_job_to_queue():
@@ -437,6 +440,442 @@ def cleanup_broken_episodes(request: Request):
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
     return _run_cleanup()
+
+# ===========================================================================
+# PLAYLIST ROUTES
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# GET /playlists — list all playlists for current user
+# ---------------------------------------------------------------------------
+@app.get("/playlists")
+def get_playlists(request: Request):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT p.id, p.name, p.created_at,
+                   COUNT(pi.id) as episode_count
+            FROM playlists p
+            LEFT JOIN playlist_items pi ON pi.playlist_id = p.id
+            WHERE p.user_id = %s
+            GROUP BY p.id, p.name, p.created_at
+            ORDER BY p.created_at DESC
+        """, (user["id"],))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {"playlists": [
+            {
+                "id": str(r[0]),
+                "name": r[1],
+                "created_at": r[2].isoformat(),
+                "episode_count": r[3]
+            } for r in rows
+        ]}
+    except Exception as e:
+        print(f"[playlists] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch playlists"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# POST /playlists — create a new playlist
+# ---------------------------------------------------------------------------
+@app.post("/playlists")
+async def create_playlist(request: Request):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "Playlist name is required"}, status_code=400)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO playlists (user_id, name)
+            VALUES (%s, %s)
+            RETURNING id, name, created_at
+        """, (user["id"], name))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {
+            "id": str(row[0]),
+            "name": row[1],
+            "created_at": row[2].isoformat(),
+            "episode_count": 0
+        }
+    except Exception as e:
+        print(f"[create_playlist] ERROR: {e}")
+        return JSONResponse({"error": "Failed to create playlist"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# PATCH /playlists/{pid} — rename a playlist
+# ---------------------------------------------------------------------------
+@app.patch("/playlists/{pid}")
+async def rename_playlist(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "Playlist name is required"}, status_code=400)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE playlists SET name = %s, updated_at = now()
+            WHERE id = %s AND user_id = %s
+            RETURNING id
+        """, (name, pid, user["id"]))
+        if not cur.fetchone():
+            return JSONResponse({"error": "Playlist not found"}, status_code=404)
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"status": "ok", "name": name}
+    except Exception as e:
+        print(f"[rename_playlist] ERROR: {e}")
+        return JSONResponse({"error": "Failed to rename playlist"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /playlists/{pid} — delete a playlist
+# ---------------------------------------------------------------------------
+@app.delete("/playlists/{pid}")
+def delete_playlist(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM playlists WHERE id = %s AND user_id = %s
+        """, (pid, user["id"]))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"status": "deleted"}
+    except Exception as e:
+        print(f"[delete_playlist] ERROR: {e}")
+        return JSONResponse({"error": "Failed to delete playlist"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# GET /playlists/{pid}/items — get episodes in a playlist
+# ---------------------------------------------------------------------------
+@app.get("/playlists/{pid}/items")
+def get_playlist_items(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Verify ownership
+        cur.execute("SELECT id FROM playlists WHERE id = %s AND user_id = %s",
+                    (pid, user["id"]))
+        if not cur.fetchone():
+            return JSONResponse({"error": "Playlist not found"}, status_code=404)
+
+        cur.execute("""
+            SELECT e.id, e.title, e.published_at, e.gcs_url, e.headlines,
+                   pi.position, pi.id as item_id
+            FROM playlist_items pi
+            JOIN episodes e ON e.id = pi.episode_id
+            WHERE pi.playlist_id = %s
+            ORDER BY pi.position ASC
+        """, (pid,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {"items": [
+            {
+                "item_id":      str(r[6]),
+                "id":           str(r[0]),
+                "title":        r[1],
+                "published_at": r[2].isoformat() if r[2] else None,
+                "gcs_url":      r[3],
+                "headlines":    r[4] if r[4] else [],
+                "position":     r[5]
+            } for r in rows
+        ]}
+    except Exception as e:
+        print(f"[playlist_items] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch playlist items"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# POST /playlists/{pid}/items — add episode to playlist
+# ---------------------------------------------------------------------------
+@app.post("/playlists/{pid}/items")
+async def add_to_playlist(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    episode_id = body.get("episode_id")
+    if not episode_id:
+        return JSONResponse({"error": "episode_id is required"}, status_code=400)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Verify ownership
+        cur.execute("SELECT id FROM playlists WHERE id = %s AND user_id = %s",
+                    (pid, user["id"]))
+        if not cur.fetchone():
+            return JSONResponse({"error": "Playlist not found"}, status_code=404)
+
+        # Get next position
+        cur.execute("""
+            SELECT COALESCE(MAX(position) + 1, 0)
+            FROM playlist_items WHERE playlist_id = %s
+        """, (pid,))
+        next_pos = cur.fetchone()[0]
+
+        cur.execute("""
+            INSERT INTO playlist_items (playlist_id, episode_id, position)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (playlist_id, episode_id) DO NOTHING
+            RETURNING id
+        """, (pid, episode_id, next_pos))
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not result:
+            return JSONResponse({"error": "Episode already in playlist"}, status_code=409)
+        return {"status": "added", "position": next_pos}
+    except Exception as e:
+        print(f"[add_to_playlist] ERROR: {e}")
+        return JSONResponse({"error": "Failed to add episode"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /playlists/{pid}/items/{item_id} — remove episode from playlist
+# ---------------------------------------------------------------------------
+@app.delete("/playlists/{pid}/items/{item_id}")
+def remove_from_playlist(request: Request, pid: str, item_id: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM playlist_items
+            WHERE id = %s AND playlist_id = %s
+            AND playlist_id IN (
+                SELECT id FROM playlists WHERE user_id = %s
+            )
+        """, (item_id, pid, user["id"]))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"status": "removed"}
+    except Exception as e:
+        print(f"[remove_from_playlist] ERROR: {e}")
+        return JSONResponse({"error": "Failed to remove episode"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# PUT /playlists/{pid}/items/reorder — reorder episodes in playlist
+# ---------------------------------------------------------------------------
+@app.put("/playlists/{pid}/items/reorder")
+async def reorder_playlist(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    # Expects: {"items": ["item_id_1", "item_id_2", ...]} in new order
+    item_ids = body.get("items", [])
+    if not item_ids:
+        return JSONResponse({"error": "items list is required"}, status_code=400)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Verify ownership
+        cur.execute("SELECT id FROM playlists WHERE id = %s AND user_id = %s",
+                    (pid, user["id"]))
+        if not cur.fetchone():
+            return JSONResponse({"error": "Playlist not found"}, status_code=404)
+
+        # Update positions
+        for position, item_id in enumerate(item_ids):
+            cur.execute("""
+                UPDATE playlist_items SET position = %s
+                WHERE id = %s AND playlist_id = %s
+            """, (position, item_id, pid))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"status": "reordered"}
+    except Exception as e:
+        print(f"[reorder_playlist] ERROR: {e}")
+        return JSONResponse({"error": "Failed to reorder playlist"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# POST /playlists/{pid}/share — generate share token
+# ---------------------------------------------------------------------------
+@app.post("/playlists/{pid}/share")
+def create_share_token(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Verify ownership
+        cur.execute("SELECT id FROM playlists WHERE id = %s AND user_id = %s",
+                    (pid, user["id"]))
+        if not cur.fetchone():
+            return JSONResponse({"error": "Playlist not found"}, status_code=404)
+
+        # Revoke any existing share tokens for this playlist
+        cur.execute("DELETE FROM playlist_shares WHERE playlist_id = %s", (pid,))
+
+        # Create new token expiring in 7 days
+        cur.execute("""
+            INSERT INTO playlist_shares (playlist_id, expires_at)
+            VALUES (%s, now() + interval '7 days')
+            RETURNING token, expires_at
+        """, (pid,))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {
+            "token":      row[0],
+            "expires_at": row[1].isoformat(),
+            "share_url":  f"/shared/{row[0]}"
+        }
+    except Exception as e:
+        print(f"[create_share] ERROR: {e}")
+        return JSONResponse({"error": "Failed to create share token"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /playlists/{pid}/share — revoke share token
+# ---------------------------------------------------------------------------
+@app.delete("/playlists/{pid}/share")
+def revoke_share_token(request: Request, pid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM playlist_shares
+            WHERE playlist_id = %s
+            AND playlist_id IN (
+                SELECT id FROM playlists WHERE user_id = %s
+            )
+        """, (pid, user["id"]))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"status": "revoked"}
+    except Exception as e:
+        print(f"[revoke_share] ERROR: {e}")
+        return JSONResponse({"error": "Failed to revoke share token"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# GET /shared/{token} — view shared playlist (must be logged in)
+# ---------------------------------------------------------------------------
+@app.get("/shared/{token}", response_class=HTMLResponse)
+def view_shared_playlist(request: Request, token: str):
+    user = require_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next=/shared/{token}", status_code=302)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Validate token and check expiry
+        cur.execute("""
+            SELECT ps.playlist_id, p.name, ps.expires_at
+            FROM playlist_shares ps
+            JOIN playlists p ON p.id = ps.playlist_id
+            WHERE ps.token = %s AND ps.expires_at > now()
+        """, (token,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return templates.TemplateResponse("shared.html", {
+                "request": request,
+                "error": "This share link is invalid or has expired.",
+                "user": user,
+                "playlist": None,
+                "items": []
+            })
+
+        playlist_id = row[0]
+        playlist_name = row[1]
+        expires_at = row[2]
+
+        cur.execute("""
+            SELECT e.id, e.title, e.published_at, e.gcs_url, e.headlines,
+                   pi.position
+            FROM playlist_items pi
+            JOIN episodes e ON e.id = pi.episode_id
+            WHERE pi.playlist_id = %s
+            ORDER BY pi.position ASC
+        """, (playlist_id,))
+        episodes = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return templates.TemplateResponse("shared.html", {
+            "request": request,
+            "user": user,
+            "error": None,
+            "playlist": {
+                "id": str(playlist_id),
+                "name": playlist_name,
+                "expires_at": expires_at.isoformat()
+            },
+            "items": [
+                {
+                    "id":           str(e[0]),
+                    "title":        e[1],
+                    "published_at": e[2].isoformat() if e[2] else None,
+                    "headlines":    e[4] if e[4] else [],
+                    "position":     e[5]
+                } for e in episodes
+            ]
+        })
+    except Exception as e:
+        print(f"[shared] ERROR: {e}")
+        return JSONResponse({"error": "Failed to load shared playlist"}, status_code=500)
 
 # ---------------------------------------------------------------------------
 # Cleanup internals

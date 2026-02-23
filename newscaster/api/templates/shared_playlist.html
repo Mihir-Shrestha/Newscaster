@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shared Playlist - Newscaster</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- TOP NAV -->
+  <header class="topbar" style="position:sticky; top:0; z-index:10;">
+    <div class="topbar-left">
+      <a href="/" class="sidebar-logo" style="text-decoration:none; border:none; padding:0;">
+        <img src="/static/logo.png" alt="Newscaster" class="logo-img" />
+        <span>Newscaster</span>
+      </a>
+    </div>
+    <div class="topbar-center"></div>
+    <div class="topbar-right">
+      {% if user %}
+        <span style="font-size:0.85rem; color:#888;">{{ user.email }}</span>
+        <a href="/auth/logout" class="btn-logout">Sign out</a>
+      {% else %}
+        <a href="/login" class="btn-primary-sm">Log in</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div style="max-width: 860px; margin: 2rem auto; padding: 0 1.5rem;">
+
+    {% if error %}
+      <div class="error-box">{{ error }}</div>
+
+    {% elif playlist %}
+      <div class="shared-header">
+        <h2 style="font-size:1.6rem; font-weight:700; margin-bottom:0.25rem;">
+          {{ playlist.name }}
+        </h2>
+        <p class="shared-expiry">Shared link expires: {{ playlist.expires_at[:10] }}</p>
+        <a href="/" class="btn-primary-sm" style="display:inline-block; margin-bottom:1.5rem;">
+          Back to My Library
+        </a>
+      </div>
+
+      <div id="episodes-list">
+        {% for item in items %}
+        <div class="episode-card">
+          <div class="episode-header">
+            <h3>{{ item.title }}</h3>
+            <span class="episode-date">
+              {% if item.published_at %}{{ item.published_at[:10] }}{% endif %}
+            </span>
+          </div>
+          {% if item.headlines %}
+          <ul class="headlines">
+            {% for h in item.headlines %}
+            <li>{{ h }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          <div class="episode-footer">
+            <audio controls src="/episodes/{{ item.id }}/audio" preload="none">
+              Your browser does not support audio.
+            </audio>
+          </div>
+        </div>
+        {% else %}
+          <p style="color:#aaa;">This playlist has no episodes.</p>
+        {% endfor %}
+      </div>
+
+    {% endif %}
+  </div>
+
+</body>
+</html>
