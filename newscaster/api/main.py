@@ -327,27 +327,73 @@ def search_episodes(
         print(f"[search] ERROR: {e}")
         return JSONResponse({"error": "Search failed"}, status_code=500)
     
+def log_listen_event(episode_id: str, user_id: str):
+    """Write a listen event and upsert the daily unique-listener aggregate."""
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+
+        # 1. Insert raw listen event
+        cur.execute(
+            """
+            INSERT INTO episode_listen_events (episode_id, user_id)
+            VALUES (%s::uuid, %s::uuid)
+            """,
+            (episode_id, user_id),
+        )
+
+        # 2. Upsert daily unique-listener count
+        cur.execute(
+            """
+            INSERT INTO episode_daily_uniques (episode_id, date, unique_listeners)
+            VALUES (%s::uuid, CURRENT_DATE, 1)
+            ON CONFLICT (episode_id, date) DO UPDATE
+            SET unique_listeners = (
+                SELECT COUNT(DISTINCT user_id)
+                FROM   episode_listen_events
+                WHERE  episode_id = EXCLUDED.episode_id
+                AND    listened_at::date = CURRENT_DATE
+            )
+            """,
+            (episode_id,),
+        )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[listen_event] ERROR: {e}")
+
+
 @app.get("/episodes/{eid}/audio")
 def get_audio(request: Request, eid: str):
     REQUEST_COUNT.inc()
     user = require_user(request)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    # ── resolve audio URL ──────────────────────────────────────────────
     gcs_url = r.hget(f"episode:{eid}", "gcs_url")
+
     if not gcs_url:
-        # Fallback to Postgres if not in Redis
         try:
             conn = get_db()
-            cur = conn.cursor()
+            cur  = conn.cursor()
             cur.execute("SELECT gcs_url FROM episodes WHERE id = %s", (eid,))
             row = cur.fetchone()
             cur.close()
             conn.close()
             if row:
-                return RedirectResponse(row[0])
+                gcs_url = row[0]
         except Exception:
             pass
+
+    if not gcs_url:
         return JSONResponse({"error": "Episode not found"}, status_code=404)
+
+    # ── log the listen event (non-blocking best-effort) ────────────────
+    log_listen_event(eid, user["id"])
+
     return RedirectResponse(gcs_url)
 
 @app.post("/generate")
@@ -876,6 +922,139 @@ def view_shared_playlist(request: Request, token: str):
     except Exception as e:
         print(f"[shared] ERROR: {e}")
         return JSONResponse({"error": "Failed to load shared playlist"}, status_code=500)
+
+# ---------------------------------------------------------------------------
+# ANALYTICS ENDPOINTS
+# ---------------------------------------------------------------------------
+
+@app.get("/analytics/episodes/{eid}/timeseries")
+def episode_timeseries(request: Request, eid: str, days: int = 30):
+    """
+    Returns daily unique-listener counts for the last `days` days.
+    Query param: ?days=30  (default 30, max 365)
+    """
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    days = min(days, 365)
+
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute(
+            """
+            SELECT date, unique_listeners
+            FROM   episode_daily_uniques
+            WHERE  episode_id = %s::uuid
+            AND    date >= CURRENT_DATE - (%s || ' days')::interval
+            ORDER  BY date ASC
+            """,
+            (eid, days),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return JSONResponse({
+            "episode_id": eid,
+            "days":       days,
+            "timeseries": [
+                {"date": str(row[0]), "unique_listeners": row[1]}
+                for row in rows
+            ],
+        })
+    except Exception as e:
+        print(f"[analytics/timeseries] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch analytics"}, status_code=500)
+
+
+@app.get("/analytics/episodes/{eid}/total")
+def episode_total_listens(request: Request, eid: str):
+    """
+    Returns total raw listen events and total unique listeners (all time).
+    """
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                COUNT(*)                     AS total_listens,
+                COUNT(DISTINCT user_id)      AS unique_listeners
+            FROM episode_listen_events
+            WHERE episode_id = %s::uuid
+            """,
+            (eid,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return JSONResponse({
+            "episode_id":       eid,
+            "total_listens":    row[0],
+            "unique_listeners": row[1],
+        })
+    except Exception as e:
+        print(f"[analytics/total] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch analytics"}, status_code=500)
+
+
+@app.get("/analytics/top")
+def top_episodes(request: Request, days: int = 7, limit: int = 10):
+    """
+    Returns top episodes by unique listeners over the last `days` days.
+    Query params: ?days=7&limit=10
+    """
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    days  = min(days, 365)
+    limit = min(limit, 50)
+
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                e.id,
+                e.title,
+                e.published_at,
+                COALESCE(SUM(u.unique_listeners), 0) AS total_unique
+            FROM episodes e
+            LEFT JOIN episode_daily_uniques u
+                ON u.episode_id = e.id
+                AND u.date >= CURRENT_DATE - (%s || ' days')::interval
+            GROUP BY e.id, e.title, e.published_at
+            ORDER BY total_unique DESC
+            LIMIT %s
+            """,
+            (days, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return JSONResponse({
+            "days":  days,
+            "limit": limit,
+            "episodes": [
+                {
+                    "id":             str(row[0]),
+                    "title":          row[1],
+                    "published_at":   str(row[2]) if row[2] else None,
+                    "unique_listeners": row[3],
+                }
+                for row in rows
+            ],
+        })
+    except Exception as e:
+        print(f"[analytics/top] ERROR: {e}")
+        return JSONResponse({"error": "Failed to fetch analytics"}, status_code=500)
 
 # ---------------------------------------------------------------------------
 # Cleanup internals
