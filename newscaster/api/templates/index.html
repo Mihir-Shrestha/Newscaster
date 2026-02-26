@@ -12,7 +12,6 @@
 
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
-      <!-- Logo -->
       <div class="sidebar-logo" onclick="loadEpisodes()">
         <img src="/static/logo.png" alt="Newscaster" class="logo-img" />
         <span>Newscaster</span>
@@ -20,7 +19,6 @@
 
       <div class="sidebar-divider"></div>
 
-      <!-- Library header -->
       <div class="sidebar-header">
         <span>Your Library</span>
         <button class="btn-icon" title="Create playlist" onclick="showCreatePlaylist()">
@@ -30,7 +28,6 @@
         </button>
       </div>
 
-      <!-- Create playlist form -->
       <div id="create-playlist-form" class="create-playlist-form" style="display:none;">
         <input type="text" id="new-playlist-name" placeholder="Playlist name..."
                maxlength="80" onkeydown="if(event.key==='Enter') createPlaylist()" />
@@ -40,12 +37,10 @@
         </div>
       </div>
 
-      <!-- Playlist list -->
       <div id="playlist-list">
         <p class="sidebar-empty">No playlists yet.</p>
       </div>
 
-      <!-- User footer -->
       <div class="sidebar-footer">
         <span class="sidebar-user-email">{{ user.email }}</span>
         <a href="/auth/logout" class="btn-logout">Sign out</a>
@@ -54,11 +49,7 @@
 
     <!-- RIGHT SIDE -->
     <div class="main-wrapper">
-
-      <!-- TOP NAV BAR -->
       <header class="topbar">
-
-        <!-- Left: Home button -->
         <div class="topbar-left">
           <button class="topbar-home-btn" onclick="loadEpisodes()" title="Home">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -66,8 +57,6 @@
             </svg>
           </button>
         </div>
-
-        <!-- Center: Search + filters -->
         <div class="topbar-center">
           <div class="search-bar-wrap">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -80,20 +69,15 @@
           <button id="search-btn" class="btn-topbar-action" onclick="searchEpisodes()">Search</button>
           <button class="btn-topbar-clear" onclick="clearSearch()">Clear</button>
         </div>
-
-        <!-- Right: Generate + user -->
         <div class="topbar-right">
           <button id="generate-btn" class="btn-generate" onclick="generateEpisode()">
             Generate Episode
           </button>
           <span id="generate-status"></span>
         </div>
-
       </header>
 
-      <!-- MAIN CONTENT -->
       <main class="main-content">
-
         <div class="content-heading">
           <h2 id="content-title">All Episodes</h2>
           <div id="playlist-actions" style="display:none;">
@@ -102,35 +86,95 @@
             <button class="btn-small btn-danger-outline" onclick="deletePlaylist()">Delete</button>
           </div>
         </div>
-
-        <!-- Share link box -->
         <div id="share-box" class="share-box" style="display:none;">
           <span id="share-url"></span>
           <button class="btn-small btn-outline" onclick="copyShareLink()">Copy Link</button>
           <button class="btn-small btn-danger-outline" onclick="revokeShare()">Revoke</button>
         </div>
-
         <div id="episodes-list">
           <p>Loading episodes...</p>
         </div>
-
       </main>
     </div>
 
   </div>
 
   {% else %}
+  <!-- ── LANDING PAGE ─────────────────────────────────────────────── -->
   <div class="landing">
+
+    <!-- Navbar -->
     <div class="landing-nav">
-      <span class="landing-logo">Newscaster</span>
-      <a href="/login" class="btn-primary-sm">Log in</a>
+      <a href="/" class="landing-logo-link">
+        <img src="/static/logo.png" alt="Newscaster" class="landing-nav-logo" />
+      </a>
+      <div class="landing-nav-actions">
+        <a href="/signup" class="btn-landing-signup">Sign up</a>
+        <a href="/login"  class="btn-primary-sm">Log in</a>
+      </div>
     </div>
+
+    <!-- Hero -->
     <div class="hero">
-      <h1>Your AI-powered<br/>news podcast</h1>
-      <p>Daily episodes generated from today's top headlines.</p>
-      <a href="/login" class="btn-hero">Get Started Free</a>
+
+      <!-- Animated brand name -->
+      <div class="hero-brand">
+        <span class="hero-brand-text" id="hero-brand">Newscaster</span>
+        <span class="hero-caret" id="hero-caret"></span>
+      </div>
+
+      <h1 class="hero-title">Your AI-powered<br/>news podcast</h1>
+
+      <p class="hero-sub">
+        Every morning, AI reads the world's top stories and turns them into<br/>
+        a personal podcast ready to play in seconds. No scrolling. Just listen.
+      </p>
+
+      <a href="/signup" class="btn-hero">Get Started Free</a>
+
+      <!-- Feature pills -->
+      <div class="hero-pills">
+        <span class="pill">Fresh daily episodes</span>
+        <span class="pill">Top headlines curated by AI</span>
+        <span class="pill">Listen anywhere</span>
+        <span class="pill">Free to start</span>
+      </div>
+
     </div>
   </div>
+
+  <script>
+    const text         = "Newscaster";
+    const el           = document.getElementById("hero-brand");
+    const caret        = document.getElementById("hero-caret");
+    const TYPE_SPEED   = 100;
+    const DELETE_SPEED = 60;
+    const PAUSE_AFTER  = 2000;
+    const PAUSE_BEFORE = 400;
+
+    function type(i) {
+      caret.classList.remove("hidden");
+      if (i <= text.length) {
+        el.textContent = text.slice(0, i);
+        setTimeout(() => type(i + 1), TYPE_SPEED);
+      } else {
+        setTimeout(() => del(text.length), PAUSE_AFTER);
+      }
+    }
+
+    function del(i) {
+      if (i >= 0) {
+        el.textContent = text.slice(0, i);
+        setTimeout(() => del(i - 1), DELETE_SPEED);
+      } else {
+        caret.classList.add("hidden");   // hide caret during pause
+        setTimeout(() => type(0), PAUSE_BEFORE);
+      }
+    }
+
+    setTimeout(() => type(0), 300);
+  </script>
+
   {% endif %}
 
   <script src="/static/app.js"></script>
