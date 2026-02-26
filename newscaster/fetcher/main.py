@@ -20,38 +20,53 @@ def connect_rabbit():
             print("Fetcher waiting for RabbitMQ...")
             time.sleep(2)
 
-def fetch_headlines():
-    url = f"https://newsapi.org/v2/top-headlines?country=us&pageSize=10&apiKey={NEWS_API_KEY}"
-    r = requests.get(url)
+def fetch_headlines(news_url=None, news_params=None):
+    """Fetch from NewsAPI — uses custom URL+params if provided, else default top-headlines."""
+    if news_url and news_params:
+        r = requests.get(news_url, params=news_params)
+    else:
+        r = requests.get(
+            "https://newsapi.org/v2/top-headlines",
+            params={"country": "us", "pageSize": 10, "apiKey": NEWS_API_KEY},
+        )
     data = r.json()
+    if data.get("status") != "ok":
+        print(f"Fetcher: NewsAPI error: {data.get('message')}")
     return data.get("articles", [])[:10]
 
 def callback(ch, method, props, body):
     JOBS_PROCESSED.inc()
-    data = json.loads(body)
-    job_id = data["job_id"]
+    data        = json.loads(body)
+    job_id      = data["job_id"]
+    news_url    = data.get("news_url")
+    news_params = data.get("news_params")
+    genre       = data.get("genre", "general")
+    episode_type = data.get("episode_type", "daily")
+    user_id     = data.get("user_id")
 
-    print(f"Fetcher: received request to generate job {job_id}")
+    print(f"Fetcher: received request to generate job {job_id} type={episode_type}")
 
-    articles = fetch_headlines()
+    articles = fetch_headlines(news_url, news_params)
 
     payload = {
-        "job_id": job_id,
+        "job_id":       job_id,
+        "episode_type": episode_type,
+        "user_id":      user_id,
+        "genre":        genre,
         "articles": [
             {
-                "title": art["title"],
+                "title":   art["title"],
                 "content": art.get("content") or art.get("description") or "",
-                "url": art["url"]
+                "url":     art["url"],
             }
             for art in articles
-        ]
+        ],
     }
 
-    # Send SINGLE message to summarizer
     ch.basic_publish(
         exchange="",
         routing_key="to_summarizer",
-        body=json.dumps(payload)
+        body=json.dumps(payload),
     )
 
     print("Fetcher published articles for job:", job_id)

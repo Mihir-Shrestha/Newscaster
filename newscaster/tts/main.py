@@ -63,32 +63,37 @@ def tts_generate(text, filename):
 # ---------------------------------------------------------------------------
 # Postgres write helper
 # ---------------------------------------------------------------------------
-def persist_episode_to_postgres(job_id, title, gcs_url, transcript, headlines):
+def persist_episode_to_postgres(job_id, title, gcs_url, transcript, headlines, episode_type="daily", user_id=None, genre="general"):
     try:
         conn = psycopg2.connect(os.environ["DATABASE_URL"])
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO episodes (id, title, gcs_url, transcript, headlines, published_at)
-            VALUES (%s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (id) DO UPDATE
-                SET gcs_url      = EXCLUDED.gcs_url,
-                    transcript   = EXCLUDED.transcript,
-                    headlines    = EXCLUDED.headlines,
-                    published_at = EXCLUDED.published_at
-        """, (
-            job_id,
-            title,
-            gcs_url,
-            transcript,
-            json.dumps(headlines)
-        ))
+        cur.execute(
+            """
+            INSERT INTO episodes (id, title, gcs_url, transcript, headlines, episode_type, user_id, genre, published_at)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s, %s, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                gcs_url      = EXCLUDED.gcs_url,
+                transcript   = EXCLUDED.transcript,
+                headlines    = EXCLUDED.headlines,
+                genre        = EXCLUDED.genre
+            """,
+            (
+                job_id,
+                title,
+                gcs_url,
+                transcript,
+                json.dumps(headlines),
+                episode_type,
+                user_id,
+                genre,
+            ),
+        )
         conn.commit()
         cur.close()
         conn.close()
         print(f"[postgres] episode {job_id} persisted OK")
     except Exception as e:
         print(f"[postgres] ERROR persisting episode {job_id}: {e}")
-        # Do NOT raise — Redis already wrote, don't fail the job
 
 def callback(ch, method, props, body):
     JOBS_PROCESSED.inc()
@@ -99,14 +104,17 @@ def callback(ch, method, props, body):
     local_path = tts_generate(script, file_name)
     gcs_url = upload_to_gcs(local_path, file_name)
 
-    headlines = data.get("headlines", [])
-    title     = datetime.now().strftime("%Y-%m-%d")
+    headlines    = data.get("headlines", [])
+    title        = datetime.now().strftime("%Y-%m-%d")
+    episode_type = data.get("episode_type", "daily")
+    user_id      = data.get("user_id")
+    genre        = data.get("genre", "general")
 
     r = redis.Redis(host="redis", port=6379, decode_responses=True)
     metadata = {
-        "id": job_id,
-        "title": title,
-        "gcs_url": gcs_url,
+        "id":       job_id,
+        "title":    title,
+        "gcs_url":  gcs_url,
         "headlines": json.dumps(headlines),
         "timestamp": int(time.time())
     }
@@ -115,13 +123,15 @@ def callback(ch, method, props, body):
     r.set("latest_episode", job_id)
     print("Metadata stored in Redis for episode:", job_id)
 
-    # ── Postgres (new, source of truth) ─────────────────────────────────────
     persist_episode_to_postgres(
-        job_id    = job_id,
-        title     = title,
-        gcs_url   = gcs_url,
-        transcript = script,   # podcast_script is the full transcript
-        headlines  = headlines
+        job_id       = job_id,
+        title        = title,
+        gcs_url      = gcs_url,
+        transcript   = script,
+        headlines    = headlines,
+        episode_type = episode_type,
+        user_id      = user_id,
+        genre        = genre,
     )
 
     ch.basic_ack(method.delivery_tag)
