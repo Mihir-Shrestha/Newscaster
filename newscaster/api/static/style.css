@@ -870,6 +870,106 @@ body {
   line-height: 1.4;
 }
 
+.rs-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.rs-required {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-left: 1px;
+}
+
+/* Info button */
+.rs-info-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rs-info-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  transition: color 0.15s;
+  line-height: 1;
+}
+.rs-info-btn:hover { color: #6c63ff; }
+
+.rs-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  background: #1e1e2e;
+  color: #e0e0e0;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  z-index: 9999;            
+  width: 210px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+  pointer-events: none;
+}
+
+.rs-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom: 5px solid #1e1e2e;
+  border-top: none;
+  right: auto;
+}
+
+.rs-tooltip-left {
+  right: auto;
+  left: 50%;
+}
+
+.rs-tooltip-left::before {
+  right: auto;
+  left: 50%;
+  border-left: none;
+  border-bottom: 5px solid #1e1e2e;
+}
+
+.rs-info-wrap:hover .rs-tooltip { display: block; }
+
+.right-sidebar,
+.rs-panel,
+.rs-body {
+  overflow: visible !important;
+}
+
+.rs-tooltip code {
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+
+/* red border on required field when empty */
+.rs-input-error {
+  border-color: #e74c3c !important;
+  box-shadow: 0 0 0 2px rgba(231,76,60,0.15) !important;
+}
+
 /* ===========================================================================
    SHARED BUTTONS
 =========================================================================== */

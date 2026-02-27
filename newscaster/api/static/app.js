@@ -751,19 +751,27 @@ async function generateCustomEpisode() {
   const btn      = document.getElementById("rs-generate-btn");
   const statusEl = document.getElementById("rs-status");
 
-  // Determine active mode
   const activeTab = document.querySelector(".rs-mode-tab.active");
   const mode = activeTab ? activeTab.dataset.mode : "custom";
 
   let body;
   if (mode === "custom") {
+    const keywords = document.getElementById("rs-keywords").value.trim();
+    // Keywords are mandatory in custom mode
+    if (!keywords) {
+      document.getElementById("rs-keywords").classList.add("rs-input-error");
+      showRsStatus("Keywords / Phrases is required.", "error", statusEl);
+      document.getElementById("rs-keywords").focus();
+      return;
+    }
+    document.getElementById("rs-keywords").classList.remove("rs-input-error");
     body = {
-      keywords:        document.getElementById("rs-keywords").value.trim(),
+      keywords,
       from_date:       document.getElementById("rs-from-date").value,
       to_date:         document.getElementById("rs-to-date").value,
       domains:         document.getElementById("rs-domains").value.trim(),
       exclude_domains: document.getElementById("rs-exclude-domains").value.trim(),
-      genre:           "custom",   // always "custom" for keyword mode
+      genre:           "custom",
     };
   } else {
     body = {
@@ -774,74 +782,6 @@ async function generateCustomEpisode() {
       exclude_domains: "",
       genre:           document.getElementById("rs-genre-select").value,
     };
-  }
-
-  btn.disabled    = true;
-  btn.textContent = "Generating…";
-  showRsStatus("Sending request...", "info", statusEl);
-
-  try {
-    const res  = await fetch("/generate/custom", {
-      method:  "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(body),
-    });
-    const data = await res.json();
-
-    if (res.status === 429) {
-      showRsStatus("Daily limit reached (5/day).", "error", statusEl);
-      btn.disabled = false; btn.textContent = "Generate"; return;
-    }
-    if (!res.ok) {
-      showRsStatus(data.error || "Failed to generate.", "error", statusEl);
-      btn.disabled = false; btn.textContent = "Generate"; return;
-    }
-
-    showRsStatus("This will take ~45 seconds.", "info", statusEl);
-    loadDailyLimit();
-
-    const jobId = data.job_id;
-    let attempts = 0;
-    if (customPollInterval) clearInterval(customPollInterval);
-    customPollInterval = setInterval(async () => {
-      attempts++;
-      try {
-        const r   = await fetch("/episodes/custom?limit=20", { credentials: "include" });
-        const eps = await r.json();
-        const list  = Array.isArray(eps) ? eps : [];
-        const found = list.find(e => e.id === jobId && e.gcs_url && e.gcs_url !== "");
-        if (found) {
-          clearInterval(customPollInterval); customPollInterval = null;
-          btn.disabled = false; btn.textContent = "Generate";
-
-          // Show success, fade out after 4s, then reload custom section
-          showRsStatus("Custom podcast is ready!", "success", statusEl);
-          setTimeout(() => {
-            statusEl.style.transition = "opacity 1.2s";
-            statusEl.style.opacity    = "0";
-            setTimeout(() => {
-              statusEl.style.display  = "none";
-              statusEl.style.opacity  = "1";
-              statusEl.style.transition = "";
-            }, 1200);
-          }, 4000);
-
-          // Reload the custom episodes section
-          loadCustomEpisodes(currentGenreFilter);
-        }
-      } catch { /* silent */ }
-      if (attempts >= 30) {  // 30 × 5s = 150s max
-        clearInterval(customPollInterval); customPollInterval = null;
-        showRsStatus("⚠️ Taking longer than expected. Refresh soon.", "error", statusEl);
-        btn.disabled = false; btn.textContent = "Generate";
-      }
-    }, 5000);
-
-  } catch (err) {
-    console.error("generateCustomEpisode error:", err);
-    showRsStatus("Failed to connect. Check console.", "error", statusEl);
-    btn.disabled = false; btn.textContent = "Generate";
   }
 }
 

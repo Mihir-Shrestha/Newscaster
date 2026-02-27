@@ -96,7 +96,7 @@
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <span>Your Library</span>
+        <span>My Library</span>
         <button class="btn-icon" title="New playlist" onclick="showCreatePlaylist()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
@@ -178,7 +178,7 @@
         <!-- Section 2: Custom episodes with filter tabs -->
         <section class="mb-section">
           <div class="section-header">
-            <h2 class="section-title">Custom Episodes</h2>
+            <h2 class="section-title">Custom Podcast</h2>
             <button class="btn-show-all" onclick="showAllEpisodes('custom')">Show all</button>
           </div>
           <div class="custom-genre-tabs">
@@ -229,28 +229,131 @@
 
         <!-- Custom fields (keywords, dates, domains) -->
         <div id="rs-custom-fields" style="display:flex; flex-direction:column; gap:0.6rem;">
-          <label class="rs-label">Keywords / Phrases</label>
-          <input type="text" id="rs-keywords" class="rs-input"
-                 placeholder='e.g. "elon musk" OR tesla' />
 
-          <label class="rs-label">From Date</label>
+          <div class="rs-field-header">
+            <label class="rs-label">Keywords / Phrases <span class="rs-required">*</span></label>
+            <div class="rs-info-wrap">
+              <button class="rs-info-btn" tabindex="-1">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </button>
+              <div class="rs-tooltip rs-tooltip-left">
+                Search terms for the news fetch.<br/>
+                <strong>Examples:</strong><br/>
+                • <code>tesla</code><br/>
+                • <code>"elon musk"</code><br/>
+                • <code>AI OR "machine learning"</code><br/>
+                • <code>climate AND policy</code><br/>
+                <em>Required.</em>
+              </div>
+            </div>
+          </div>
+          <input type="text" id="rs-keywords" class="rs-input"
+                 placeholder='e.g. "elon musk" OR tesla' required />
+
+          <div class="rs-field-header">
+            <label class="rs-label">From Date</label>
+            <div class="rs-info-wrap">
+              <button class="rs-info-btn" tabindex="-1">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </button>
+              <div class="rs-tooltip rs-tooltip-left">
+                Earliest publish date for articles.<br/>
+                <strong>Example:</strong> 2026-01-01<br/>
+                <em>Optional. Defaults to 30 days ago.</em>
+              </div>
+            </div>
+          </div>
           <input type="date" id="rs-from-date" class="rs-input" />
 
-          <label class="rs-label">To Date</label>
+          <div class="rs-field-header">
+            <label class="rs-label">To Date</label>
+            <div class="rs-info-wrap">
+              <button class="rs-info-btn" tabindex="-1">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </button>
+              <div class="rs-tooltip rs-tooltip-left">
+                Latest publish date for articles.<br/>
+                <strong>Example:</strong> 2026-02-26<br/>
+                <em>Optional. Defaults to today.</em>
+              </div>
+            </div>
+          </div>
           <input type="date" id="rs-to-date" class="rs-input" />
 
-          <label class="rs-label">Publisher Domains</label>
+          <div class="rs-field-header">
+            <label class="rs-label">Publisher Domains</label>
+            <div class="rs-info-wrap">
+              <button class="rs-info-btn" tabindex="-1">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </button>
+              <div class="rs-tooltip rs-tooltip-left">
+                Only fetch articles from these domains.<br/>
+                <strong>Examples:</strong><br/>
+                • <code>techcrunch.com</code><br/>
+                • <code>bbc.com, reuters.com</code><br/>
+                Comma-separated.<br/>
+                <em>Optional.</em>
+              </div>
+            </div>
+          </div>
           <input type="text" id="rs-domains" class="rs-input"
                  placeholder="techcrunch.com, bbc.com" />
 
-          <label class="rs-label">Exclude Domains</label>
+          <div class="rs-field-header">
+            <label class="rs-label">Exclude Domains</label>
+            <div class="rs-info-wrap">
+              <button class="rs-info-btn" tabindex="-1">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </button>
+              <div class="rs-tooltip rs-tooltip-left">
+                Block articles from these domains.<br/>
+                <strong>Examples:</strong><br/>
+                • <code>breitbart.com</code><br/>
+                • <code>example.com, spam.net</code><br/>
+                Comma-separated.<br/>
+                <em>Optional.</em>
+              </div>
+            </div>
+          </div>
           <input type="text" id="rs-exclude-domains" class="rs-input"
                  placeholder="e.g. breitbart.com" />
+
         </div>
 
         <!-- Genre fields -->
         <div id="rs-genre-fields" style="display:none; flex-direction:column; gap:0.6rem;">
-          <label class="rs-label">Genre</label>
+
+          <div class="rs-field-header">
+            <label class="rs-label">Genre <span class="rs-required">*</span></label>
+            <div class="rs-info-wrap">
+              <button class="rs-info-btn" tabindex="-1">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </button>
+              <div class="rs-tooltip rs-tooltip-left">
+                Fetches today's top headlines for this category.<br/>
+                <strong>Options:</strong><br/>
+                • Technology — AI, gadgets, software<br/>
+                • Business — markets, economy<br/>
+                • Sports — scores, transfers<br/>
+                • Health — medicine, wellness<br/>
+                • Entertainment — film, music<br/>
+                • Science — research, space<br/>
+                <em>Required.</em>
+              </div>
+            </div>
+          </div>
           <select id="rs-genre-select" class="rs-input rs-select">
             <option value="technology">Technology</option>
             <option value="business">Business</option>
@@ -259,7 +362,7 @@
             <option value="entertainment">Entertainment</option>
             <option value="science">Science</option>
           </select>
-          <p class="rs-hint">Fetches today's top headlines for this genre.</p>
+
         </div>
 
         <button class="btn-rs-generate" id="rs-generate-btn" onclick="generateCustomEpisode()">
