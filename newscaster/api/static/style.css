@@ -490,6 +490,118 @@ body {
 }
 .ep-card-btn:hover { background: #f0edff; border-color: #6c63ff; color: #6c63ff; }
 
+/* ===========================================================================
+   EPISODE CARD — DELETE BUTTON
+=========================================================================== */
+.ep-card-thumb { position: relative; }
+
+.ep-delete-btn {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;                         /* hidden until card is hovered */
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 10;
+}
+.ep-card:hover .ep-delete-btn        { opacity: 1; }
+.ep-delete-btn:hover                  { background: rgba(220, 53, 53, 0.85); }
+
+/* ===========================================================================
+   DELETE CONFIRM MODAL
+=========================================================================== */
+#ep-delete-modal {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#ep-delete-modal.open { opacity: 1; }
+
+#ep-delete-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+}
+
+#ep-delete-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.75rem 1.5rem 1.25rem;
+  z-index: 10001;
+  width: 280px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+#ep-delete-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fdecea;
+  color: #e74c3c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+#ep-delete-msg {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+#ep-delete-msg span {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #999;
+}
+
+#ep-delete-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+#ep-delete-cancel {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #f5f5f5;
+  color: #555;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+#ep-delete-cancel:hover { background: #ebebeb; }
+
+#ep-delete-confirm {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: none;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+#ep-delete-confirm:hover { background: #c0392b; }
+
 /* Playlist picker popup */
 .playlist-picker-popup {
   position: fixed;

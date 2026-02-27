@@ -258,32 +258,25 @@ async function fetchAndRender(url, container, inPlaylist, isCustom = false) {
 // ===========================================================================
 // RENDER EPISODE CARDS
 // ===========================================================================
-function renderEpisodeCards(episodes, container, inPlaylist = false, isCustom = false) {
-  if (!episodes || episodes.length === 0) {
-    container.innerHTML = inPlaylist
-      ? '<p class="empty-text">No episodes in this playlist.</p>'
-      : isCustom
-        ? '<p class="empty-text">No custom episodes yet. Generate one →</p>'
-        : '<p class="empty-text">No episodes yet.</p>';
+function renderEpisodeCards(episodes, container, isDaily = false, isCustom = false) {
+  container.innerHTML = "";
+  if (!episodes.length) {
+    container.innerHTML = '<p class="empty-text">No episodes yet.</p>';
     return;
   }
 
-  container.innerHTML = episodes.map(ep => {
-    const d       = ep.published_at ? new Date(ep.published_at) : new Date();
-    const month   = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
-    const day     = d.getDate();
-    const year    = d.getFullYear();
-    const dayName = d.toLocaleString("en-US", { weekday: "long" });
-    const dateStr = d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+  episodes.forEach(ep => {
+    const date        = new Date(ep.published_at);
+    const month       = date.toLocaleString("default", { month: "short" }).toUpperCase();
+    const day         = date.getDate();
+    const year        = date.getFullYear();
+    const cp          = ep.custom_params || {};
+    const hasKeywords = cp.keywords && cp.keywords.trim() !== "";
 
-    // ── Card title / subtitle ──────────────────────────────────────
     let cardTitle, cardSubtitle;
-    if (isCustom) {
-      const cp = ep.custom_params || {};
-      const hasKeywords = cp.keywords && cp.keywords.trim() !== "";
 
+    if (isCustom) {
       if (hasKeywords) {
-        // True custom search — show keywords as title
         const parts = [];
         if (cp.keywords)  parts.push(cp.keywords);
         if (cp.from_date) parts.push(cp.from_date);
@@ -292,68 +285,137 @@ function renderEpisodeCards(episodes, container, inPlaylist = false, isCustom = 
         cardTitle    = parts.join(" – ");
         cardSubtitle = "custom";
       } else {
-        // Genre-based — cp.genre is the truth, ep.genre is always "general" (backend bug)
-        const g = cp.genre || "general";
+        const g  = cp.genre || "general";
         cardTitle    = ep.title || (g.charAt(0).toUpperCase() + g.slice(1));
         cardSubtitle = g.toLowerCase();
       }
     } else {
-      // Daily
-      cardTitle    = dayName;
-      cardSubtitle = "daily";
+      cardTitle    = ep.title || ep.genre || "Episode";
+      cardSubtitle = ep.genre || "";
     }
 
-    // Truncate long titles for display
-    const displayTitle = cardTitle.length > 32
-      ? cardTitle.slice(0, 30) + "…"
-      : cardTitle;
+    const card = document.createElement("div");
+    card.className   = "ep-card" + (isCustom ? " custom-ep-card" : "");
+    card.draggable   = false;
+    card.dataset.id  = ep.id;
+    card.dataset.url = ep.gcs_url;
 
-    const thumbClass = isCustom ? "ep-card-thumb custom-ep" : "ep-card-thumb";
-    const dragAttrs  = inPlaylist
-      ? `draggable="true" data-item-id="${ep.item_id || ep.id}"`
-      : "";
-
-    // ── Action buttons ─────────────────────────────────────────────
-    // Transcript button only in bottom navbar — never on custom cards
-    // In playlist view keep Remove; elsewhere keep + Playlist only
-    let actionBtns;
-    if (inPlaylist) {
-      actionBtns = `<button class="ep-card-btn" onclick="removeFromPlaylist('${ep.item_id || ep.id}',event)">Remove</button>`;
-    } else {
-      actionBtns = `<button class="ep-card-btn" id="pl-btn-${ep.id}" onclick="showAddToPlaylist('${ep.id}',event)">+ Playlist</button>`;
-    }
-
-    // Player title: "Thursday (Feb 26, 2026)" style
-    const playerTitle = isCustom
-      ? `${cardTitle} (${dateStr})`
-      : `${dayName} (${dateStr})`;
-
-    return `
-    <div class="ep-card ${inPlaylist ? 'draggable' : ''}"
-         ${dragAttrs}
-         data-episode-id="${ep.id}"
-         onclick="playEpisode('${ep.id}','${escHtml(playerTitle)}','${escHtml(cardSubtitle)}',event)">
-      <div class="${thumbClass}">
+    card.innerHTML = `
+      <div class="ep-card-thumb ${isCustom ? "custom-ep" : ""}">
         <span class="ep-card-month">${month}</span>
         <span class="ep-card-day">${day}</span>
         <span class="ep-card-year">${year}</span>
         <div class="ep-card-play-overlay">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z"/>
           </svg>
         </div>
+        ${!isDaily ? `
+        <button class="ep-delete-btn" title="Delete episode" data-id="${ep.id}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 3h6l1 1h4v2H4V4h4L9 3zm-4 5h14l-1 14H6L5 8zm4 2v9h1v-9H9zm4 0v9h1v-9h-1z"/>
+          </svg>
+        </button>` : ""}
       </div>
       <div class="ep-card-info">
-        <div class="ep-card-title" title="${escHtml(cardTitle)}">${escHtml(displayTitle)}</div>
-        <div class="ep-card-meta">${escHtml(cardSubtitle)}</div>
-        <div class="ep-card-actions" onclick="event.stopPropagation()">
-          ${actionBtns}
+        <div class="ep-card-title" title="${cardTitle}">${cardTitle}</div>
+        <div class="ep-card-meta">${cardSubtitle}</div>
+        <div class="ep-card-actions">
+          <button class="ep-card-btn ep-playlist-btn">+ Playlist</button>
         </div>
       </div>
-    </div>`;
-  }).join("");
+    `;
 
-  if (inPlaylist) setupDragAndDrop();
+    // Play on card click (not on button clicks)
+    card.addEventListener("click", e => {
+      if (e.target.closest(".ep-card-btn") || e.target.closest(".ep-delete-btn")) return;
+      playEpisode(ep);
+    });
+
+    // Delete button
+    const deleteBtn = card.querySelector(".ep-delete-btn");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        showDeleteConfirm(ep.id, card);
+      });
+    }
+
+    // Playlist button
+    const plBtn = card.querySelector(".ep-playlist-btn");
+    if (plBtn) {
+      plBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        openPlaylistPicker(ep.id, plBtn);
+      });
+    }
+
+    container.appendChild(card);
+  });
+}
+
+// ===========================================================================
+// DELETE CONFIRM POPUP
+// ===========================================================================
+function showDeleteConfirm(episodeId, cardEl) {
+  // Remove any existing popup
+  document.getElementById("ep-delete-modal")?.remove();
+
+  const modal = document.createElement("div");
+  modal.id    = "ep-delete-modal";
+  modal.innerHTML = `
+    <div id="ep-delete-backdrop"></div>
+    <div id="ep-delete-dialog">
+      <div id="ep-delete-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M9 3h6l1 1h4v2H4V4h4L9 3zm-4 5h14l-1 14H6L5 8zm4 2v9h1v-9H9zm4 0v9h1v-9h-1z"/>
+        </svg>
+      </div>
+      <p id="ep-delete-msg">Delete this episode?<br/><span>This cannot be undone.</span></p>
+      <div id="ep-delete-actions">
+        <button id="ep-delete-cancel">Cancel</button>
+        <button id="ep-delete-confirm">Delete</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Animate in
+  requestAnimationFrame(() => modal.classList.add("open"));
+
+  const close = () => {
+    modal.classList.remove("open");
+    setTimeout(() => modal.remove(), 200);
+  };
+
+  modal.querySelector("#ep-delete-backdrop").addEventListener("click", close);
+  modal.querySelector("#ep-delete-cancel").addEventListener("click", close);
+  modal.querySelector("#ep-delete-confirm").addEventListener("click", async () => {
+    close();
+    await deleteEpisode(episodeId, cardEl);
+  });
+}
+
+async function deleteEpisode(episodeId, cardEl) {
+  try {
+    const res = await fetch(`/episodes/${episodeId}`, {
+      method:      "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Failed to delete episode.");
+      return;
+    }
+    // Animate card out then remove
+    cardEl.style.transition = "opacity 0.25s, transform 0.25s";
+    cardEl.style.opacity    = "0";
+    cardEl.style.transform  = "scale(0.95)";
+    setTimeout(() => cardEl.remove(), 250);
+
+  } catch {
+    alert("Network error. Could not delete episode.");
+  }
 }
 
 // ===========================================================================

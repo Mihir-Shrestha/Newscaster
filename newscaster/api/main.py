@@ -419,6 +419,62 @@ def get_transcript(request: Request, eid: str):
         return JSONResponse({"error": "Failed"}, status_code=500)
 
 # ---------------------------------------------------------------------------
+# DELETE /episodes/{eid} — delete a custom episode (owner only)
+# ---------------------------------------------------------------------------
+@app.delete("/episodes/{eid}")
+def delete_episode(request: Request, eid: str):
+    user = require_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+
+        # Verify the episode exists and belongs to this user
+        cur.execute(
+            """
+            SELECT id, episode_type FROM episodes
+            WHERE id = %s::uuid AND user_id = %s::uuid
+            """,
+            (eid, user["id"]),
+        )
+        row = cur.fetchone()
+
+        if not row:
+            cur.close()
+            conn.close()
+            return JSONResponse({"error": "Episode not found or access denied"}, status_code=404)
+
+        if row[1] == "daily":
+            cur.close()
+            conn.close()
+            return JSONResponse({"error": "Daily episodes cannot be deleted"}, status_code=403)
+
+        # Remove from playlist_items first (foreign key)
+        cur.execute("DELETE FROM playlist_items WHERE episode_id = %s::uuid", (eid,))
+
+        # Delete the episode
+        cur.execute("DELETE FROM episodes WHERE id = %s::uuid", (eid,))
+
+        # Clean up Redis cache if present
+        r.delete(f"episode:{eid}")
+        latest = r.get("latest_episode")
+        if latest == eid:
+            r.delete("latest_episode")
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        print(f"[delete_episode] deleted {eid} by user {user['id']}")
+        return JSONResponse({"status": "deleted", "id": eid})
+
+    except Exception as e:
+        print(f"[delete_episode] ERROR: {e}")
+        return JSONResponse({"error": "Failed to delete episode"}, status_code=500)      
+
+# ---------------------------------------------------------------------------
 # EPISODES — DAILY (auto-generated, common for all users)
 # ---------------------------------------------------------------------------
 @app.get("/episodes/daily")
