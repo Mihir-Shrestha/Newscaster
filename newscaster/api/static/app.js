@@ -16,6 +16,33 @@ const audio = document.getElementById("global-audio");
 // ===========================================================================
 // INIT
 // ===========================================================================
+// Call once on DOMContentLoaded
+function initTooltips() {
+  document.querySelectorAll(".rs-info-wrap").forEach(wrap => {
+    const btn     = wrap.querySelector(".rs-info-btn");
+    const tooltip = wrap.querySelector(".rs-tooltip");
+    if (!btn || !tooltip) return;
+
+    btn.addEventListener("mouseenter", () => {
+      const rect = btn.getBoundingClientRect();
+
+      // Position tooltip to the left of the icon, vertically centered
+      const tooltipWidth  = 230;
+      const left = rect.left - tooltipWidth - 10;   // 10px gap to the left
+      const top  = rect.top + (rect.height / 2);    // vertically centered on icon
+
+      tooltip.style.left = `${Math.max(8, left)}px`; // never go off left edge
+      tooltip.style.top  = `${top}px`;
+      tooltip.style.transform = "translateY(-50%)";
+      tooltip.style.display   = "block";
+    });
+
+    btn.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   if (!document.getElementById("home-view")) return;
 
@@ -39,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (openPickerBtn && !e.target.closest(".playlist-picker-popup") &&
         !e.target.closest(".ep-card-btn"))
       closeAllPickers();
+    initTooltips();
   });
 });
 
@@ -64,12 +92,36 @@ function showAllEpisodes(type) {
   const list  = document.getElementById("show-all-list");
   view.style.display = "block";
   activeView = "show-all";
+
   if (type === "daily") {
     title.textContent = "All Daily Episodes";
     fetchAndRender("/episodes/daily?limit=100", list, false, false);
   } else {
-    title.textContent = "All Custom Episodes";
-    fetchAndRender(`/episodes/custom?limit=100&genre=${currentGenreFilter}`, list, false, true);
+    title.textContent = `All ${currentGenreFilter === "custom" ? "Custom" : currentGenreFilter.charAt(0).toUpperCase() + currentGenreFilter.slice(1)} Episodes`;
+
+    // Fetch all and filter client-side, same logic as loadCustomEpisodes
+    list.innerHTML = '<p class="loading-text">Loading...</p>';
+    fetch("/episodes/custom?limit=100", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => {
+        let episodes = Array.isArray(data) ? data : data.episodes || data.results || data.items || [];
+
+        if (currentGenreFilter === "custom") {
+          episodes = episodes.filter(ep => {
+            const cp = ep.custom_params || {};
+            return cp.keywords && cp.keywords.trim() !== "";
+          });
+        } else {
+          episodes = episodes.filter(ep => {
+            const cp = ep.custom_params || {};
+            return (cp.genre || "").toLowerCase() === currentGenreFilter.toLowerCase()
+                && (!cp.keywords || cp.keywords.trim() === "");
+          });
+        }
+
+        renderEpisodeCards(episodes, list, false, true);
+      })
+      .catch(() => { list.innerHTML = '<p class="empty-text">Failed to load.</p>'; });
   }
 }
 
@@ -139,16 +191,50 @@ async function loadDailyEpisodes() {
 
 async function loadCustomEpisodes(genre = "custom") {
   currentGenreFilter = genre;
-  const url = genre === "custom"
-    ? "/episodes/custom?limit=8"
-    : `/episodes/custom?limit=8&genre=${genre}`;
-  await fetchAndRender(url,
-    document.getElementById("custom-episodes-list"), false, true);
+  const container = document.getElementById("custom-episodes-list");
+  if (!container) return;
+
+  container.innerHTML = '<p class="loading-text">Loading...</p>';
+
+  try {
+    // Always fetch all custom episodes — filter client-side because
+    // the backend stores genre in custom_params.genre, not the top-level
+    // genre column (which is always "general")
+    const res  = await fetch("/episodes/custom?limit=100", { credentials: "include" });
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const data = await res.json();
+    let episodes = Array.isArray(data) ? data : data.episodes || data.results || data.items || [];
+
+    if (genre === "custom") {
+      // "Custom" tab — show only keyword-based episodes (keywords not empty)
+      episodes = episodes.filter(ep => {
+        const cp = ep.custom_params || {};
+        return cp.keywords && cp.keywords.trim() !== "";
+      });
+    } else {
+      // Genre tab (technology, entertainment, etc.) — match custom_params.genre
+      episodes = episodes.filter(ep => {
+        const cp = ep.custom_params || {};
+        return (cp.genre || "").toLowerCase() === genre.toLowerCase()
+            && (!cp.keywords || cp.keywords.trim() === "");
+      });
+    }
+
+    // Only show 8 most recent after filtering
+    episodes = episodes.slice(0, 8);
+
+    renderEpisodeCards(episodes, container, false, true);
+  } catch {
+    container.innerHTML = '<p class="empty-text">Failed to load.</p>';
+  }
 }
 
 function switchCustomFilter(genre, btn) {
+  // Update active tab styling
   document.querySelectorAll(".custom-genre-tab").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
+
+  // Load filtered episodes
   loadCustomEpisodes(genre);
 }
 
@@ -193,11 +279,11 @@ function renderEpisodeCards(episodes, container, inPlaylist = false, isCustom = 
     // ── Card title / subtitle ──────────────────────────────────────
     let cardTitle, cardSubtitle;
     if (isCustom) {
-      const cp  = ep.custom_params || {};
-      const hasCustomParams = cp.keywords || cp.domains || cp.from_date || cp.to_date;
+      const cp = ep.custom_params || {};
+      const hasKeywords = cp.keywords && cp.keywords.trim() !== "";
 
-      if (hasCustomParams) {
-        // Build title from all supplied inputs, dash-separated
+      if (hasKeywords) {
+        // True custom search — show keywords as title
         const parts = [];
         if (cp.keywords)  parts.push(cp.keywords);
         if (cp.from_date) parts.push(cp.from_date);
@@ -206,10 +292,10 @@ function renderEpisodeCards(episodes, container, inPlaylist = false, isCustom = 
         cardTitle    = parts.join(" – ");
         cardSubtitle = "custom";
       } else {
-        // Genre-based
-        const g   = ep.genre || "general";
-        cardTitle    = g.charAt(0).toUpperCase() + g.slice(1);
-        cardSubtitle = g;   // e.g. "technology", "science"
+        // Genre-based — cp.genre is the truth, ep.genre is always "general" (backend bug)
+        const g = cp.genre || "general";
+        cardTitle    = ep.title || (g.charAt(0).toUpperCase() + g.slice(1));
+        cardSubtitle = g.toLowerCase();
       }
     } else {
       // Daily
@@ -757,7 +843,6 @@ async function generateCustomEpisode() {
   let body;
   if (mode === "custom") {
     const keywords = document.getElementById("rs-keywords").value.trim();
-    // Keywords are mandatory in custom mode
     if (!keywords) {
       document.getElementById("rs-keywords").classList.add("rs-input-error");
       showRsStatus("Keywords / Phrases is required.", "error", statusEl);
@@ -783,6 +868,98 @@ async function generateCustomEpisode() {
       genre:           document.getElementById("rs-genre-select").value,
     };
   }
+
+  btn.disabled    = true;
+  btn.textContent = "Generating…";
+  showRsStatus("This will take ~60 seconds…", "info", statusEl);
+
+  try {
+    const res  = await fetch("/generate/custom", {
+      method:      "POST",
+      credentials: "include",
+      headers:     { "Content-Type": "application/json" },
+      body:        JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (res.status === 429) {
+      showRsStatus("Daily limit reached. Try again tomorrow.", "error", statusEl);
+      btn.disabled    = false;
+      btn.textContent = "Generate";
+      return;
+    }
+    if (!res.ok) {
+      showRsStatus(`Error: ${data.error || "Generation failed."}`, "error", statusEl);
+      btn.disabled    = false;
+      btn.textContent = "Generate";
+      return;
+    }
+
+    // Reload limit bar immediately after queuing
+    await loadDailyLimit();
+
+    // ── Poll until the new episode appears, then stop ──────────────
+    // Snapshot how many custom episodes exist right now
+    const beforeRes  = await fetch("/episodes/custom?limit=100", { credentials: "include" });
+    const beforeData = await beforeRes.json();
+    const beforeIds  = new Set((beforeData.episodes || beforeData || []).map(e => e.id));
+
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    const poll = setInterval(async () => {
+      attempts++;
+
+      const afterRes  = await fetch("/episodes/custom?limit=100", { credentials: "include" });
+      const afterData = await afterRes.json();
+      const afterEps  = afterData.episodes || afterData || [];
+
+      // Check if a new episode appeared that wasn't there before
+      const newEp = afterEps.find(e => !beforeIds.has(e.id));
+
+      if (newEp) {
+        // New episode found — refresh the visible section once and stop
+        clearInterval(poll);
+        await loadCustomEpisodes(currentGenreFilter);
+
+        // Show "ready" message then fade it out after 3s
+        showRsStatus("Your podcast is ready!", "success", statusEl);
+        setTimeout(() => fadeOutStatus(statusEl), 3000);
+
+        btn.disabled    = false;
+        btn.textContent = "Generate";
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        // Timed out — do one final refresh and show a neutral message
+        clearInterval(poll);
+        await loadCustomEpisodes(currentGenreFilter);
+        showRsStatus("Generation may still be processing. Check back soon.", "info", statusEl);
+        setTimeout(() => fadeOutStatus(statusEl), 5000);
+        btn.disabled    = false;
+        btn.textContent = "Generate";
+      }
+    }, 60000); // poll every 60s
+
+  } catch (err) {
+    console.error("[generate]", err);
+    showRsStatus("Network error. Please try again.", "error", statusEl);
+    btn.disabled    = false;
+    btn.textContent = "Generate";
+  }
+}
+
+// Fade out and hide the status message
+function fadeOutStatus(el) {
+  if (!el) return;
+  el.style.transition = "opacity 1s ease";
+  el.style.opacity    = "0";
+  setTimeout(() => {
+    el.style.display  = "none";
+    el.style.opacity  = "1";
+    el.style.transition = "";
+  }, 1000);
 }
 
 function showRsStatus(msg, type, el) {
