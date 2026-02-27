@@ -69,6 +69,7 @@ services:
     env_file: .env
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - NEWS_API_KEY=${NEWS_API_KEY}
     volumes:
       - ./output:/output
       - ./secrets:/var/secrets/google
@@ -93,6 +94,7 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_QUEUE=to_fetcher
       - DATABASE_URL=${DATABASE_URL}
+      - NEWS_API_KEY=${NEWS_API_KEY}
     depends_on:
       - redis
       - rabbitmq

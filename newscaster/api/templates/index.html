@@ -1,3 +1,4 @@
+<!-- filepath: /Users/mihir/Documents/Fall_2025/CSCI_5253/Project/Newscaster_Project/newscaster/api/templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,27 +8,101 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  {% if user %}
-  <div class="app-layout">
+{% if user %}
+<div class="app-shell">
+
+  <!-- ── TOP NAVBAR ───────────────────────────────────────────── -->
+  <header class="top-nav">
+    <div class="top-nav-left">
+      <a href="/" class="top-nav-logo">
+        <img src="/static/logo.png" alt="Newscaster" class="logo-img" />
+        <span class="top-nav-brand">Newscaster</span>
+      </a>
+    </div>
+
+    <div class="top-nav-center">
+      <button class="nav-icon-btn" onclick="showHome()" title="Home">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+      </button>
+
+      <div class="search-bar-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M21 19l-4.35-4.35A7.5 7.5 0 1 0 15 16.65L19.35 21 21 19zM10.5 16a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
+        </svg>
+        <input type="text" id="search-query" placeholder="Search episodes..."
+               onkeydown="if(event.key==='Enter') searchEpisodes()"
+               oninput="toggleSearchClear()" />
+        <button class="search-clear-btn" id="search-clear-btn"
+                onclick="clearSearchInput()" title="Clear" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="date-filter-wrap" id="date-filter-wrap">
+        <button class="btn-date-filter" id="date-filter-btn"
+                onclick="toggleDateFilter()" title="Filter by date">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
+          </svg>
+          <span id="date-filter-label">Date</span>
+        </button>
+        <div class="date-filter-dropdown" id="date-filter-dropdown">
+          <div class="date-filter-row">
+            <label class="date-filter-label">From</label>
+            <input type="date" id="from-date" class="date-input" onchange="updateDateFilterLabel()" />
+          </div>
+          <div class="date-filter-row">
+            <label class="date-filter-label">To</label>
+            <input type="date" id="to-date" class="date-input" onchange="updateDateFilterLabel()" />
+          </div>
+          <div class="date-filter-actions">
+            <button class="btn-small btn-primary" onclick="applyDateFilter()">Apply</button>
+            <button class="btn-clear-small" onclick="clearDateFilter()">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <button id="search-btn" class="btn-topbar-action" onclick="searchEpisodes()">Search</button>
+    </div>
+
+    <div class="top-nav-right">
+      <div class="profile-menu-wrap" id="profile-menu-wrap">
+        <button class="profile-btn" onclick="toggleProfileMenu()" title="Account">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+          </svg>
+        </button>
+        <div class="profile-dropdown" id="profile-dropdown">
+          <div class="profile-email">{{ user.email }}</div>
+          <div class="profile-divider"></div>
+          <a href="/auth/logout" class="profile-menu-item profile-signout">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            </svg>
+            Sign out
+          </a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── BODY ─────────────────────────────────────────────────── -->
+  <div class="app-body">
 
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
-      <div class="sidebar-logo" onclick="loadEpisodes()">
-        <img src="/static/logo.png" alt="Newscaster" class="logo-img" />
-        <span>Newscaster</span>
-      </div>
-
-      <div class="sidebar-divider"></div>
-
       <div class="sidebar-header">
         <span>Your Library</span>
-        <button class="btn-icon" title="Create playlist" onclick="showCreatePlaylist()">
+        <button class="btn-icon" title="New playlist" onclick="showCreatePlaylist()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
           </svg>
         </button>
       </div>
-
       <div id="create-playlist-form" class="create-playlist-form" style="display:none;">
         <input type="text" id="new-playlist-name" placeholder="Playlist name..."
                maxlength="80" onkeydown="if(event.key==='Enter') createPlaylist()" />
@@ -36,147 +111,273 @@
           <button class="btn-small btn-clear-small" onclick="hideCreatePlaylist()">Cancel</button>
         </div>
       </div>
-
       <div id="playlist-list">
         <p class="sidebar-empty">No playlists yet.</p>
       </div>
-
-      <div class="sidebar-footer">
-        <span class="sidebar-user-email">{{ user.email }}</span>
-        <a href="/auth/logout" class="btn-logout">Sign out</a>
-      </div>
     </aside>
 
-    <!-- RIGHT SIDE -->
-    <div class="main-wrapper">
-      <header class="topbar">
-        <div class="topbar-left">
-          <button class="topbar-home-btn" onclick="loadEpisodes()" title="Home">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-            </svg>
-          </button>
-        </div>
-        <div class="topbar-center">
-          <div class="search-bar-wrap">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M21 19l-4.35-4.35A7.5 7.5 0 1 0 15 16.65L19.35 21 21 19zM10.5 16a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
-            </svg>
-            <input type="text" id="search-query" placeholder="Search episodes..." />
-          </div>
-          <input type="date" id="from-date" class="date-input" />
-          <input type="date" id="to-date"   class="date-input" />
-          <button id="search-btn" class="btn-topbar-action" onclick="searchEpisodes()">Search</button>
-          <button class="btn-topbar-clear" onclick="clearSearch()">Clear</button>
-        </div>
-        <div class="topbar-right">
-          <button id="generate-btn" class="btn-generate" onclick="generateEpisode()">
-            Generate Episode
-          </button>
-          <span id="generate-status"></span>
-        </div>
-      </header>
+    <!-- MIDDLEBAR -->
+    <main class="middlebar" id="middlebar">
 
-      <main class="main-content">
-        <div class="content-heading">
-          <h2 id="content-title">All Episodes</h2>
-          <div id="playlist-actions" style="display:none;">
+      <div id="search-results-view" style="display:none;">
+        <div class="section-header">
+          <h2 id="search-results-title">Search Results</h2>
+          <button class="btn-show-all" onclick="showHome()">← Back</button>
+        </div>
+        <div class="episode-grid" id="search-results-list"></div>
+      </div>
+
+      <div id="transcript-view" style="display:none;">
+        <div class="section-header">
+          <h2>Transcript</h2>
+          <button class="btn-show-all" onclick="closeTranscript()">← Back</button>
+        </div>
+        <div id="transcript-content" class="transcript-content"></div>
+      </div>
+
+      <div id="show-all-view" style="display:none;">
+        <div class="section-header">
+          <h2 id="show-all-title"></h2>
+          <button class="btn-show-all" onclick="showHome()">← Back</button>
+        </div>
+        <div class="episode-grid" id="show-all-list"></div>
+      </div>
+
+      <div id="playlist-view" style="display:none;">
+        <div class="section-header">
+          <h2 id="playlist-view-title">Playlist</h2>
+          <div class="playlist-view-actions">
             <button class="btn-small btn-outline" onclick="renamePlaylistPrompt()">Rename</button>
             <button class="btn-small btn-outline" onclick="sharePlaylist()">Share</button>
             <button class="btn-small btn-danger-outline" onclick="deletePlaylist()">Delete</button>
+            <button class="btn-show-all" onclick="showHome()">← Back</button>
           </div>
         </div>
         <div id="share-box" class="share-box" style="display:none;">
           <span id="share-url"></span>
-          <button class="btn-small btn-outline" onclick="copyShareLink()">Copy Link</button>
+          <button class="btn-small btn-outline" onclick="copyShareLink()">Copy</button>
           <button class="btn-small btn-danger-outline" onclick="revokeShare()">Revoke</button>
         </div>
-        <div id="episodes-list">
-          <p>Loading episodes...</p>
+        <div class="episode-grid" id="playlist-episodes-list"></div>
+      </div>
+
+      <!-- HOME — 2 sections only -->
+      <div id="home-view">
+
+        <!-- Section 1: Daily -->
+        <section class="mb-section">
+          <div class="section-header">
+            <h2 class="section-title">Daily News Podcast</h2>
+            <button class="btn-show-all" onclick="showAllEpisodes('daily')">Show all</button>
+          </div>
+          <div class="episode-grid" id="daily-episodes-list">
+            <p class="loading-text">Loading...</p>
+          </div>
+        </section>
+
+        <!-- Section 2: Custom episodes with filter tabs -->
+        <section class="mb-section">
+          <div class="section-header">
+            <h2 class="section-title">Custom Episodes</h2>
+            <button class="btn-show-all" onclick="showAllEpisodes('custom')">Show all</button>
+          </div>
+          <div class="custom-genre-tabs">
+            <button class="custom-genre-tab active" data-genre="custom"
+                    onclick="switchCustomFilter('custom', this)">Custom</button>
+            <button class="custom-genre-tab" data-genre="technology"
+                    onclick="switchCustomFilter('technology', this)">Technology</button>
+            <button class="custom-genre-tab" data-genre="business"
+                    onclick="switchCustomFilter('business', this)">Business</button>
+            <button class="custom-genre-tab" data-genre="sports"
+                    onclick="switchCustomFilter('sports', this)">Sports</button>
+            <button class="custom-genre-tab" data-genre="health"
+                    onclick="switchCustomFilter('health', this)">Health</button>
+            <button class="custom-genre-tab" data-genre="entertainment"
+                    onclick="switchCustomFilter('entertainment', this)">Entertainment</button>
+            <button class="custom-genre-tab" data-genre="science"
+                    onclick="switchCustomFilter('science', this)">Science</button>
+          </div>
+          <div class="episode-grid" id="custom-episodes-list">
+            <p class="loading-text">Loading...</p>
+          </div>
+        </section>
+
+      </div><!-- /home-view -->
+    </main>
+
+    <!-- RIGHT SIDEBAR — Generate Podcast -->
+    <aside class="right-sidebar">
+      <div class="right-sidebar-inner">
+        <h3 class="rs-title">Generate Podcast</h3>
+
+        <div class="rs-limit-bar">
+          <span id="rs-limit-text">Loading...</span>
+          <div class="rs-limit-track">
+            <div class="rs-limit-fill" id="rs-limit-fill"></div>
+          </div>
         </div>
-      </main>
+
+        <div class="rs-divider"></div>
+
+        <!-- Mode tabs -->
+        <div class="rs-mode-tabs">
+          <button class="rs-mode-tab active" data-mode="custom"
+                  onclick="switchGenerateMode('custom')">Custom</button>
+          <button class="rs-mode-tab" data-mode="genre"
+                  onclick="switchGenerateMode('genre')">By Genre</button>
+        </div>
+
+        <!-- Custom fields (keywords, dates, domains) -->
+        <div id="rs-custom-fields" style="display:flex; flex-direction:column; gap:0.6rem;">
+          <label class="rs-label">Keywords / Phrases</label>
+          <input type="text" id="rs-keywords" class="rs-input"
+                 placeholder='e.g. "elon musk" OR tesla' />
+
+          <label class="rs-label">From Date</label>
+          <input type="date" id="rs-from-date" class="rs-input" />
+
+          <label class="rs-label">To Date</label>
+          <input type="date" id="rs-to-date" class="rs-input" />
+
+          <label class="rs-label">Publisher Domains</label>
+          <input type="text" id="rs-domains" class="rs-input"
+                 placeholder="techcrunch.com, bbc.com" />
+
+          <label class="rs-label">Exclude Domains</label>
+          <input type="text" id="rs-exclude-domains" class="rs-input"
+                 placeholder="e.g. breitbart.com" />
+        </div>
+
+        <!-- Genre fields -->
+        <div id="rs-genre-fields" style="display:none; flex-direction:column; gap:0.6rem;">
+          <label class="rs-label">Genre</label>
+          <select id="rs-genre-select" class="rs-input rs-select">
+            <option value="technology">Technology</option>
+            <option value="business">Business</option>
+            <option value="sports">Sports</option>
+            <option value="health">Health</option>
+            <option value="entertainment">Entertainment</option>
+            <option value="science">Science</option>
+          </select>
+          <p class="rs-hint">Fetches today's top headlines for this genre.</p>
+        </div>
+
+        <button class="btn-rs-generate" id="rs-generate-btn" onclick="generateCustomEpisode()">
+          Generate
+        </button>
+
+        <div id="rs-status" class="rs-status" style="display:none;"></div>
+      </div>
+    </aside>
+  </div><!-- /app-body -->
+
+  <!-- ── BOTTOM PLAYER BAR ────────────────────────────────────── -->
+  <footer class="player-bar">
+
+    <!-- LEFT: thumb + title -->
+    <div class="player-info">
+      <div class="player-thumb" id="player-thumb">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" opacity="0.5">
+          <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+        </svg>
+      </div>
+      <div class="player-meta">
+        <span class="player-title"    id="player-title">No episode selected</span>
+        <span class="player-subtitle" id="player-subtitle"></span>
+      </div>
     </div>
 
+    <!-- CENTER: controls + progress (constrained width) -->
+    <div class="player-center">
+      <div class="player-controls">
+        <button class="player-btn" onclick="seekRelative(-15)" title="Back 15s">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+          </svg>
+        </button>
+        <button class="player-btn player-play-btn" id="play-pause-btn" onclick="togglePlay()">
+          <svg id="play-icon"  width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <svg id="pause-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+        <button class="player-btn" onclick="seekRelative(15)" title="Forward 15s">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="player-progress-wrap">
+        <span class="player-time" id="player-current">0:00</span>
+        <input type="range" class="player-progress" id="player-progress"
+               value="0" min="0" step="0.1" oninput="seekTo(this.value)" />
+        <span class="player-time" id="player-duration">0:00</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: transcript + volume -->
+    <div class="player-right">
+      <button class="player-btn" id="transcript-btn" onclick="toggleTranscript()"
+              title="Transcript" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/>
+        </svg>
+      </button>
+      <button class="player-btn" onclick="toggleMute()" title="Mute">
+        <svg id="vol-icon"  width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+        </svg>
+        <svg id="mute-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+          <path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06A8.99 8.99 0 0 0 17.73 18l2 2L21 18.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+        </svg>
+      </button>
+      <input type="range" class="volume-slider" id="volume-slider"
+             min="0" max="1" step="0.05" value="1"
+             oninput="setVolume(this.value)" />
+    </div>
+  </footer>
+  <audio id="global-audio" preload="none"></audio>
+</div>
+{% else %}
+<!-- LANDING (unchanged) -->
+<div class="landing">
+  <div class="landing-nav">
+    <a href="/" class="landing-logo-link">
+      <img src="/static/logo.png" alt="Newscaster" class="landing-nav-logo" />
+      <span class="landing-logo-text">Newscaster</span>
+    </a>
+    <div class="landing-nav-actions">
+      <a href="/signup" class="btn-landing-signup">Sign up</a>
+      <a href="/login"  class="btn-primary-sm">Log in</a>
+    </div>
   </div>
-
-  {% else %}
-  <!-- ── LANDING PAGE ─────────────────────────────────────────────── -->
-  <div class="landing">
-
-    <!-- Navbar -->
-    <div class="landing-nav">
-      <a href="/" class="landing-logo-link">
-        <img src="/static/logo.png" alt="Newscaster" class="landing-nav-logo" />
-      </a>
-      <div class="landing-nav-actions">
-        <a href="/signup" class="btn-landing-signup">Sign up</a>
-        <a href="/login"  class="btn-primary-sm">Log in</a>
-      </div>
+  <div class="hero">
+    <div class="hero-brand">
+      <span class="hero-brand-text" id="hero-brand"></span>
+      <span class="hero-caret" id="hero-caret"></span>
     </div>
-
-    <!-- Hero -->
-    <div class="hero">
-
-      <!-- Animated brand name -->
-      <div class="hero-brand">
-        <span class="hero-brand-text" id="hero-brand">Newscaster</span>
-        <span class="hero-caret" id="hero-caret"></span>
-      </div>
-
-      <h1 class="hero-title">Your AI-powered<br/>news podcast</h1>
-
-      <p class="hero-sub">
-        Every morning, AI reads the world's top stories and turns them into<br/>
-        a personal podcast ready to play in seconds. No scrolling. Just listen.
-      </p>
-
-      <a href="/signup" class="btn-hero">Get Started Free</a>
-
-      <!-- Feature pills -->
-      <div class="hero-pills">
-        <span class="pill">Fresh daily episodes</span>
-        <span class="pill">Top headlines curated by AI</span>
-        <span class="pill">Listen anywhere</span>
-        <span class="pill">Free to start</span>
-      </div>
-
+    <h1 class="hero-title">Your AI-powered<br/>news podcast</h1>
+    <p class="hero-sub">Every morning, AI reads the world's top stories and turns them into<br/>a personal podcast ready to play in seconds. No scrolling. Just listen.</p>
+    <a href="/signup" class="btn-hero">Get Started Free</a>
+    <div class="hero-pills">
+      <span class="pill">Fresh daily episodes</span>
+      <span class="pill">Top headlines curated by AI</span>
+      <span class="pill">Listen anywhere</span>
+      <span class="pill">Free to start</span>
     </div>
   </div>
-
   <script>
-    const text         = "Newscaster";
-    const el           = document.getElementById("hero-brand");
-    const caret        = document.getElementById("hero-caret");
-    const TYPE_SPEED   = 100;
-    const DELETE_SPEED = 60;
-    const PAUSE_AFTER  = 2000;
-    const PAUSE_BEFORE = 400;
-
-    function type(i) {
-      caret.classList.remove("hidden");
-      if (i <= text.length) {
-        el.textContent = text.slice(0, i);
-        setTimeout(() => type(i + 1), TYPE_SPEED);
-      } else {
-        setTimeout(() => del(text.length), PAUSE_AFTER);
-      }
-    }
-
-    function del(i) {
-      if (i >= 0) {
-        el.textContent = text.slice(0, i);
-        setTimeout(() => del(i - 1), DELETE_SPEED);
-      } else {
-        caret.classList.add("hidden");   // hide caret during pause
-        setTimeout(() => type(0), PAUSE_BEFORE);
-      }
-    }
-
-    setTimeout(() => type(0), 300);
+    const text="Newscaster",el=document.getElementById("hero-brand"),caret=document.getElementById("hero-caret");
+    const TS=100,DS=60,PA=2000,PB=400;
+    function type(i){caret.classList.remove("hidden");if(i<=text.length){el.textContent=text.slice(0,i);setTimeout(()=>type(i+1),TS);}else setTimeout(()=>del(text.length),PA);}
+    function del(i){if(i>=0){el.textContent=text.slice(0,i);setTimeout(()=>del(i-1),DS);}else{caret.classList.add("hidden");setTimeout(()=>type(0),PB);}}
+    setTimeout(()=>type(0),300);
   </script>
+</div>
+{% endif %}
 
-  {% endif %}
-
-  <script src="/static/app.js"></script>
+<script src="/static/app.js"></script>
 </body>
 </html>
