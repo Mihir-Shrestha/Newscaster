@@ -329,7 +329,7 @@ function renderEpisodeCards(episodes, container, isDaily = false, isCustom = fal
     // Play on card click (not on button clicks)
     card.addEventListener("click", e => {
       if (e.target.closest(".ep-card-btn") || e.target.closest(".ep-delete-btn")) return;
-      playEpisode(ep);
+      playEpisode(ep.id, cardTitle, cardSubtitle, e);
     });
 
     // Delete button
