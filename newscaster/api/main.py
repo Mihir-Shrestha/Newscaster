@@ -52,6 +52,11 @@ templates = Jinja2Templates(directory="/app/templates")
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 REQUEST_COUNT = Counter("api_request_count", "Total API Requests")
 
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return RedirectResponse(url="/static/favicon.ico?v=20260318g", status_code=307)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -63,6 +68,29 @@ def get_current_user(request: Request) -> dict | None:
     if not token:
         return None
     return decode_access_token(token)
+
+def enrich_user_profile(user: dict | None) -> dict | None:
+    if not user:
+        return None
+
+    enriched = dict(user)
+    user_id = enriched.get("id") or enriched.get("sub")
+
+    if user_id and "id" not in enriched:
+        enriched["id"] = user_id
+
+    if not user_id:
+        return enriched
+
+    try:
+        db_user = get_user_by_id(user_id)
+        if db_user:
+            enriched["email"] = db_user.get("email", enriched.get("email"))
+            enriched["display_name"] = db_user.get("display_name") or enriched.get("display_name")
+    except Exception as e:
+        print(f"[user_profile] ERROR: {e}")
+
+    return enriched
 
 def require_user(request: Request) -> dict | None:
     user = get_current_user(request)
@@ -99,7 +127,7 @@ def format_episode_row(row) -> dict:
 @app.get("/", response_class=HTMLResponse)
 def homepage(request: Request):
     REQUEST_COUNT.inc()
-    user = get_current_user(request)
+    user = enrich_user_profile(get_current_user(request))
     return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
 @app.get("/login", response_class=HTMLResponse)

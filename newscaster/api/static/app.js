@@ -9,9 +9,11 @@ let customPollInterval = null;
 let activeView         = "home";
 let openPickerBtn      = null;
 let plDragSrcId        = null;
-let currentGenreFilter = "custom"; // tracks filter in custom section
+let currentGenreFilter = "all"; // tracks filter in custom section
+const playerState = { episodeId: null, isPlaying: false };
 
 const audio = document.getElementById("global-audio");
+const THEME_STORAGE_KEY = "newscaster-theme";
 
 // ===========================================================================
 // INIT
@@ -44,10 +46,11 @@ function initTooltips() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
   if (!document.getElementById("home-view")) return;
 
   loadDailyEpisodes();
-  loadCustomEpisodes("custom");
+  loadCustomEpisodes("all");
   loadPlaylists();
   loadDailyLimit();
   setupAudioListeners();
@@ -69,6 +72,44 @@ document.addEventListener("DOMContentLoaded", () => {
     initTooltips();
   });
 });
+
+// ===========================================================================
+// THEME
+// ===========================================================================
+function initTheme() {
+  if (document.body?.classList.contains("public-page")) {
+    applyTheme("light");
+    return;
+  }
+
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  applyTheme(savedTheme || (prefersDark ? "dark" : "light"));
+}
+
+function applyTheme(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.classList.remove("light", "dark");
+  document.documentElement.classList.add(nextTheme);
+  localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  updateThemeToggleUI(nextTheme);
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
+}
+
+function setThemeFromSwitch(isDark) {
+  applyTheme(isDark ? "dark" : "light");
+}
+
+function updateThemeToggleUI(theme) {
+  const label = document.getElementById("theme-toggle-label");
+  const switchInput = document.getElementById("theme-toggle-input");
+
+  if (label) label.textContent = "Dark mode";
+  if (switchInput) switchInput.checked = theme === "dark";
+}
 
 // ===========================================================================
 // VIEW MANAGEMENT
@@ -97,7 +138,7 @@ function showAllEpisodes(type) {
     title.textContent = "All Daily Episodes";
     fetchAndRender("/episodes/daily?limit=100", list, false, false);
   } else {
-    title.textContent = `All ${currentGenreFilter === "custom" ? "Custom" : currentGenreFilter.charAt(0).toUpperCase() + currentGenreFilter.slice(1)} Episodes`;
+    title.textContent = `All ${currentGenreFilter === "all" ? "Categories" : currentGenreFilter === "custom" ? "Custom" : currentGenreFilter.charAt(0).toUpperCase() + currentGenreFilter.slice(1)} Episodes`;
 
     // Fetch all and filter client-side, same logic as loadCustomEpisodes
     list.innerHTML = '<p class="loading-text">Loading...</p>';
@@ -106,7 +147,9 @@ function showAllEpisodes(type) {
       .then(data => {
         let episodes = Array.isArray(data) ? data : data.episodes || data.results || data.items || [];
 
-        if (currentGenreFilter === "custom") {
+        if (currentGenreFilter === "all") {
+          episodes = episodes;
+        } else if (currentGenreFilter === "custom") {
           episodes = episodes.filter(ep => {
             const cp = ep.custom_params || {};
             return cp.keywords && cp.keywords.trim() !== "";
@@ -189,7 +232,7 @@ async function loadDailyEpisodes() {
     document.getElementById("daily-episodes-list"), false, false);
 }
 
-async function loadCustomEpisodes(genre = "custom") {
+async function loadCustomEpisodes(genre = "all") {
   currentGenreFilter = genre;
   const container = document.getElementById("custom-episodes-list");
   if (!container) return;
@@ -205,7 +248,9 @@ async function loadCustomEpisodes(genre = "custom") {
     const data = await res.json();
     let episodes = Array.isArray(data) ? data : data.episodes || data.results || data.items || [];
 
-    if (genre === "custom") {
+    if (genre === "all") {
+      episodes = episodes;
+    } else if (genre === "custom") {
       // "Custom" tab — show only keyword-based episodes (keywords not empty)
       episodes = episodes.filter(ep => {
         const cp = ep.custom_params || {};
@@ -294,6 +339,9 @@ function renderEpisodeCards(episodes, container, isDaily = false, isCustom = fal
       cardSubtitle = ep.genre || "";
     }
 
+    const isCurrentEpisode = playerState.episodeId === ep.id;
+    const isPlayingThisEpisode = isCurrentEpisode && playerState.isPlaying;
+
     const card = document.createElement("div");
     card.className   = "ep-card" + (isCustom ? " custom-ep-card" : "");
     card.draggable   = false;
@@ -305,11 +353,13 @@ function renderEpisodeCards(episodes, container, isDaily = false, isCustom = fal
         <span class="ep-card-month">${month}</span>
         <span class="ep-card-day">${day}</span>
         <span class="ep-card-year">${year}</span>
-        <div class="ep-card-play-overlay">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
+        <button class="ep-card-play-overlay" title="${isPlayingThisEpisode ? "Pause" : "Play"}" data-episode-id="${ep.id}">
+          <svg class="ep-card-overlay-icon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+            ${isPlayingThisEpisode
+              ? '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'
+              : '<path d="M8 5v14l11-7z"/>'}
           </svg>
-        </div>
+        </button>
         ${!isDaily ? `
         <button class="ep-delete-btn" title="Delete episode" data-id="${ep.id}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -347,6 +397,14 @@ function renderEpisodeCards(episodes, container, isDaily = false, isCustom = fal
       plBtn.addEventListener("click", e => {
         e.stopPropagation();
         openPlaylistPicker(ep.id, plBtn);
+      });
+    }
+
+    const overlayBtn = card.querySelector(".ep-card-play-overlay");
+    if (overlayBtn) {
+      overlayBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        playEpisode(ep.id, cardTitle, cardSubtitle);
       });
     }
 
@@ -428,9 +486,8 @@ function closeAllPickers() {
   openPickerBtn = null;
 }
 
-async function showAddToPlaylist(episodeId, event) {
-  event.stopPropagation();
-  const btn = document.getElementById(`pl-btn-${episodeId}`);
+async function openPlaylistPicker(episodeId, btn) {
+  if (!btn) return;
   if (openPickerBtn === btn) { closeAllPickers(); return; }
   closeAllPickers();
   openPickerBtn = btn;
@@ -476,7 +533,7 @@ async function showAddToPlaylist(episodeId, event) {
       : sorted.map(p => `
           <div class="picker-item"
                onclick="addToPlaylist('${p.id}','${episodeId}','${escHtml(p.name)}',event)">
-            🎵 ${escHtml(p.name)}
+            ${escHtml(p.name)}
           </div>`).join("");
   } catch {
     popup.innerHTML = '<p class="picker-empty">Failed to load.</p>';
@@ -494,7 +551,7 @@ async function addToPlaylist(playlistId, episodeId, playlistName, event) {
     });
     if (res.status === 409) { alert("Already in playlist."); return; }
     if (!res.ok)            { alert("Failed to add."); return; }
-    alert(`✅ Added to "${playlistName}"`);
+    alert(`Added to "${playlistName}"`);
   } catch { alert("Failed to add episode."); }
 }
 
@@ -515,13 +572,35 @@ function setupAudioListeners() {
     document.getElementById("player-duration").textContent = fmtTime(audio.duration);
     document.getElementById("player-progress").max = audio.duration;
   });
-  audio.addEventListener("play",  () => setPlayIcon(true));
-  audio.addEventListener("pause", () => setPlayIcon(false));
-  audio.addEventListener("ended", () => setPlayIcon(false));
+  audio.addEventListener("play",  () => updatePlaybackUI(true));
+  audio.addEventListener("pause", () => updatePlaybackUI(false));
+  audio.addEventListener("ended", () => updatePlaybackUI(false));
+}
+
+function updatePlaybackUI(isPlaying) {
+  playerState.episodeId = currentEpisodeId;
+  playerState.isPlaying = isPlaying;
+  setPlayIcon(isPlaying);
+  document.querySelectorAll(".ep-card").forEach(card => {
+    const btn = card.querySelector(".ep-card-play-overlay");
+    const icon = btn?.querySelector(".ep-card-overlay-icon");
+    if (!btn || !icon) return;
+    const active = btn.dataset.episodeId === currentEpisodeId;
+    const playing = active && isPlaying;
+    card.classList.toggle("playing", playing);
+    btn.title = playing ? "Pause" : "Play";
+    icon.innerHTML = playing
+      ? '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+  });
 }
 
 async function playEpisode(id, title, subtitle, event) {
   if (event && event.target.closest("button")) return;
+  if (currentEpisodeId === id && audio.src) {
+    togglePlay();
+    return;
+  }
   currentEpisodeId = id;
   document.getElementById("player-title").textContent    = title;
   document.getElementById("player-subtitle").textContent = subtitle;  // daily / custom / genre
@@ -725,7 +804,7 @@ async function createPlaylist() {
     });
     if (!res.ok) { alert("Failed to create playlist."); return; }
     hideCreatePlaylist();
-    loadPlaylists();
+    await loadPlaylists();
   } catch { alert("Failed to create playlist."); }
 }
 
@@ -876,7 +955,10 @@ function updateLimitUI(used, limit) {
   const fillEl    = document.getElementById("rs-limit-fill");
   const btn       = document.getElementById("rs-generate-btn");
   if (textEl) textEl.textContent = `${remaining} / ${limit} left today`;
-  if (fillEl) { fillEl.style.width = `${pct}%`; fillEl.style.background = remaining <= 1 ? "#e74c3c" : "#6c63ff"; }
+  if (fillEl) {
+    fillEl.style.width = `${pct}%`;
+    fillEl.style.background = remaining <= 1 ? "#e86b6b" : "var(--color-primary)";
+  }
   if (btn)    btn.disabled = remaining <= 0;
 }
 

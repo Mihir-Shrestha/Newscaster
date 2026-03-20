@@ -5,10 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Newscaster</title>
-    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=20260318g">
+    <link rel="shortcut icon" href="/static/favicon.ico?v=20260318g">
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="{% if user %}app-page{% else %}public-page{% endif %}">
 {% if user %}
 <div class="app-shell">
 
@@ -16,7 +17,7 @@
   <header class="top-nav">
     <div class="top-nav-left">
       <a href="/" class="top-nav-logo">
-        <img src="/static/logo.png" alt="Newscaster" class="logo-img" />
+        <img src="/static/logo.png?v=20260318e" alt="Newscaster" class="logo-img" />
         <span class="top-nav-brand">Newscaster</span>
       </a>
     </div>
@@ -73,12 +74,28 @@
     <div class="top-nav-right">
       <div class="profile-menu-wrap" id="profile-menu-wrap">
         <button class="profile-btn" onclick="toggleProfileMenu()" title="Account">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
-          </svg>
+          {{ (user.display_name or user.email or "U")[0]|upper }}
         </button>
         <div class="profile-dropdown" id="profile-dropdown">
           <div class="profile-email">{{ user.email }}</div>
+          <div class="profile-divider"></div>
+          <div class="profile-menu-item theme-switch-row">
+            <div class="theme-switch-copy">
+              <svg class="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 0 1 11.21 3c0-.34.02-.67.05-1A1 1 0 0 0 9.9.94 10 10 0 1 0 23.06 14.1a1 1 0 0 0-1.27-1.31c-.25.02-.52 0-.79 0z"/>
+              </svg>
+              <span id="theme-toggle-label">Dark mode</span>
+            </div>
+            <label class="theme-switch" for="theme-toggle-input">
+              <input
+                type="checkbox"
+                id="theme-toggle-input"
+                onchange="setThemeFromSwitch(this.checked)"
+                aria-label="Toggle dark mode"
+              />
+              <span class="theme-switch-slider"></span>
+            </label>
+          </div>
           <div class="profile-divider"></div>
           <a href="/auth/logout" class="profile-menu-item profile-signout">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -183,7 +200,9 @@
             <button class="btn-show-all" onclick="showAllEpisodes('custom')">Show all</button>
           </div>
           <div class="custom-genre-tabs">
-            <button class="custom-genre-tab active" data-genre="custom"
+            <button class="custom-genre-tab active" data-genre="all"
+                    onclick="switchCustomFilter('all', this)">All</button>
+            <button class="custom-genre-tab" data-genre="custom"
                     onclick="switchCustomFilter('custom', this)">Custom</button>
             <button class="custom-genre-tab" data-genre="technology"
                     onclick="switchCustomFilter('technology', this)">Technology</button>
@@ -449,7 +468,7 @@
 <div class="landing">
   <div class="landing-nav">
     <a href="/" class="landing-logo-link">
-      <img src="/static/logo.png" alt="Newscaster" class="landing-nav-logo" />
+      <img src="/static/logo.png?v=20260318e" alt="Newscaster" class="landing-nav-logo" />
       <span class="landing-logo-text">Newscaster</span>
     </a>
     <div class="landing-nav-actions">

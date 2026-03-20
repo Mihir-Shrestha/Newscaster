@@ -1,141 +1,62 @@
-# NewsCaster AI - Automated Podcast Generation System
+# Newscaster
 
-A production-style cloud-native application that automatically generates daily podcasts summarizing trending world news.
+## What it does
+Newscaster is a microservice-based app that turns live news into short podcast episodes. It fetches current headlines, summarizes them into a spoken script, converts that script into audio, and lets users play, search, save, and share episodes through a web app.
 
-## Project Overview
+## Why this was built
+Newscaster grew from a simple, familiar habit: enjoying podcasts as an easy way to stay informed. Keeping up with the news often takes more time and focus than a busy day allows, and while social media can surface updates quickly, it can also be distracting, noisy, and fragmented. The goal here was to create a better middle ground, a way to turn important news into something easier to follow through listening.
 
-NewsCaster AI is an automated system that:
-- Fetches trending articles via **NewsAPI**
-- Summarizes content using **OpenAI API**
-- Converts summaries to audio via **Google Cloud TTS**
-- Delivers episodes through an **RSS feed**
+It also became an opportunity to explore what it takes to build a complete software system end to end. Rather than stopping at one piece of functionality, this project connects live news retrieval, summarization, audio generation, storage, and a real user-facing application. The result is a project shaped by a personal use case, but built with the structure of a practical production-style system.
 
-Built as a distributed microservices architecture demonstrating message queues, workers, orchestration, and cloud storage.
+## How it works
+- API layer: A FastAPI app handles authentication, episode browsing, search, custom generation requests, playlists, analytics, and the frontend UI.
+- Database: PostgreSQL stores users, episodes, playlists, shares, and listen analytics. Redis is used as a lightweight cache for episode metadata and latest-audio lookups.
+- Processing logic: The API queues jobs in RabbitMQ, the fetcher pulls articles from NewsAPI, the summarizer uses Ollama to generate a podcast-style script, and the TTS worker converts that script to MP3 with Google Cloud Text-to-Speech before storing metadata and audio locations.
 
-## System Architecture
+## Architecture
 
-### Core Components
-
-| Component | Purpose | Why Chosen |
-|-----------|---------|-----------|
-| FastAPI | Public API + RSS feed | Fast, async, ideal for microservices |
-| RabbitMQ | Message queue | Reliable AMQP, durable queues, K8s-ready |
-| Redis | Job state tracking | High-speed KV store for metadata |
-| OpenAI | Text summarization | High-quality summaries |
-| Google Cloud TTS | Text-to-speech | Natural voice synthesis |
-| Docker | Containerization | Portable, consistent environments |
-| Kubernetes | Orchestration | Production-grade deployment |
-| Prometheus + Grafana | Monitoring | Metrics and visualization |
-| Google Cloud Storage | MP3 storage | Scalable object storage |
-
-### Data Flow
-
-![Newscaster Data Flow](./assets/NewsCaster%20AI.png)
-
-```
-1. Trigger (manual or 6 AM CronJob)
-   ↓
-2. RabbitMQ (to_fetcher)
-   ↓
-3. Fetcher → NewsAPI → Extract articles
-   ↓
-4. RabbitMQ (to_summarizer)
-   ↓
-5. Summarizer → OpenAI → Generate script
-   ↓
-6. RabbitMQ (to_tts)
-   ↓
-7. TTS → Google Cloud TTS → MP3 file
-   ↓
-8. Upload to Google Cloud Storage
-   ↓
-9. Save metadata to Redis
-   ↓
-10. API serves RSS feed & episodes
+```text
+User request
+  -> FastAPI API
+  -> RabbitMQ queue
+  -> Fetcher service
+  -> Summarizer service
+  -> TTS service
+  -> Google Cloud Storage + PostgreSQL + Redis
+  -> API serves episodes, transcripts, playlists, and analytics
 ```
 
-## Microservices Workflows
+Services in the project:
 
-### Episode Generation
+- `api`: authentication, UI, search, playlists, analytics, RSS
+- `fetcher`: article collection from NewsAPI
+- `summarizer`: podcast script generation with Ollama
+- `tts`: audio generation, upload, and persistence
+- `postgres`, `redis`, `rabbitmq`, `ollama`: supporting infrastructure
 
-**Manual Trigger:**
-- User clicks "Generate New Episode" in FastAPI UI
-- API publishes message → `to_fetcher` queue
+## Run locally
+1. Make sure Docker and Docker Compose are installed.
+2. Copy `newscaster/.env_example` to `newscaster/.env`.
+3. Fill in your NewsAPI key, database settings, JWT secret, and Google OAuth values.
+4. Add your Google Cloud service account key at `newscaster/secrets/gcp-key.json`.
+5. Make sure your Google Cloud Storage bucket matches the one expected by the app, or update the code/config.
+6. From `newscaster/`, run:
 
-**Automatic Trigger:**
-- Kubernetes CronJob launches at 6 AM
-- Fetcher automatically fetches from NewsAPI
+```bash
+docker compose up --build
+```
 
-### Fetcher Service
-1. Receives job_id from queue
-2. Calls NewsAPI for top 10 articles
-3. Extracts: title, content, URL
-4. Publishes to `to_summarizer` queue
+7. Open `http://localhost:8000`.
 
-### Summarizer Service
-1. Receives articles from queue
-2. Uses OpenAI API for podcast-style summarization
-3. Generates: full script + headline list
-4. Publishes to `to_tts` queue
+## Key learnings
+- How to design and coordinate a distributed workflow across multiple services instead of putting all processing into a single application.
+- How to work with asynchronous pipelines, message queues, and background workers to make the system more modular and easier to extend.
+- How much engineering work goes into product features beyond the core pipeline, especially authentication, search, playlists, analytics, and persistence.
+- How important clean service boundaries, database migrations, configuration management, and deployment setup are when building software that is meant to feel production-ready.
 
-### TTS Service
-1. Receives script from queue
-2. Initializes Google Cloud TTS client
-3. Generates MP3 file (`/output/<job_id>_final.mp3`)
-4. Uploads to GCS bucket
-5. Stores metadata in Redis
-
-## API Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /episodes` | List all episodes |
-| `GET /episodes/{id}/audio` | Redirect to GCS signed URL |
-| `GET /latest` | Latest episode metadata |
-| `GET /rss.xml` | RSS feed |
-| `POST /generate` | Trigger manual episode generation |
-
-## Kubernetes Deployment
-
-**Deployments:**
-- API Service
-- Fetcher Worker
-- Summarizer
-- TTS Worker
-- Redis
-- RabbitMQ
-- Prometheus + Grafana
-
-**Services:**
-- `api.newscaster.svc.cluster.local`
-- `redis.newscaster.svc.cluster.local`
-- `rabbitmq.newscaster.svc.cluster.local`
-
-## Monitoring
-
-Prometheus scrapes metrics for:
-- Pod restart frequency
-- Queue throughput
-- Worker latency
-- Container resource usage
-
-Grafana dashboards visualize performance in real-time.
-
-## Capabilities & Limitations
-
-### Capabilities
-- Fully automated daily podcast generation (6 AM + manual)  
-- Modular microservices architecture  
-- Cloud-native with K8s auto-scaling  
-- Observable with Prometheus/Grafana  
-
-### Known Limitations
-
-| Bottleneck | Reason | Possible Fix |
-|-----------|--------|-------------|
-| Summarizer latency | LLM API response time | Scale worker replicas; use faster model |
-| TTS cost | Per-character pricing | Cache phrases; compress speech |
-| Credentials management | Hardcoded secrets | Use External Secrets Manager |
-
----
-
+## Future improvements
+- Scaling: add better worker autoscaling, retries, and dead-letter handling for failed jobs.
+- Monitoring: expand dashboards and alerting around queue health, worker latency, and audio generation failures.
+- Configuration: make storage bucket names and provider settings fully configurable.
+- Testing: add automated integration tests for the end-to-end generation pipeline.
+- Security: move secrets to a proper secret manager and tighten production auth/config handling.
