@@ -9,7 +9,7 @@
     <link rel="shortcut icon" href="/static/favicon.ico?v=20260318g">
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body class="{% if user %}app-page{% else %}public-page{% endif %}">
 {% if user %}
 <div class="app-shell">
 
@@ -79,15 +79,23 @@
         <div class="profile-dropdown" id="profile-dropdown">
           <div class="profile-email">{{ user.email }}</div>
           <div class="profile-divider"></div>
-          <button type="button" class="profile-menu-item profile-theme-toggle" onclick="toggleTheme()">
-            <svg class="theme-icon theme-icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M21 12.79A9 9 0 0 1 11.21 3c0-.34.02-.67.05-1A1 1 0 0 0 9.9.94 10 10 0 1 0 23.06 14.1a1 1 0 0 0-1.27-1.31c-.25.02-.52 0-.79 0z"/>
-            </svg>
-            <svg class="theme-icon theme-icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none;">
-              <path d="M6.76 4.84 5.34 3.42 3.92 4.84l1.42 1.42 1.42-1.42zm10.48 0 1.42 1.42 1.42-1.42-1.42-1.42-1.42 1.42zM12 5a1 1 0 0 0 1-1V2a1 1 0 1 0-2 0v2a1 1 0 0 0 1 1zm0 14a1 1 0 0 0-1 1v2a1 1 0 1 0 2 0v-2a1 1 0 0 0-1-1zm7-8h2a1 1 0 1 0 0-2h-2a1 1 0 1 0 0 2zM3 11h2a1 1 0 1 0 0-2H3a1 1 0 1 0 0 2zm14.24 8.16 1.42 1.42 1.42-1.42-1.42-1.42-1.42 1.42zM5.34 17.74l-1.42 1.42 1.42 1.42 1.42-1.42-1.42-1.42zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/>
-            </svg>
-            <span id="theme-toggle-label">Light Theme</span>
-          </button>
+          <div class="profile-menu-item theme-switch-row">
+            <div class="theme-switch-copy">
+              <svg class="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 0 1 11.21 3c0-.34.02-.67.05-1A1 1 0 0 0 9.9.94 10 10 0 1 0 23.06 14.1a1 1 0 0 0-1.27-1.31c-.25.02-.52 0-.79 0z"/>
+              </svg>
+              <span id="theme-toggle-label">Dark mode</span>
+            </div>
+            <label class="theme-switch" for="theme-toggle-input">
+              <input
+                type="checkbox"
+                id="theme-toggle-input"
+                onchange="setThemeFromSwitch(this.checked)"
+                aria-label="Toggle dark mode"
+              />
+              <span class="theme-switch-slider"></span>
+            </label>
+          </div>
           <div class="profile-divider"></div>
           <a href="/auth/logout" class="profile-menu-item profile-signout">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">

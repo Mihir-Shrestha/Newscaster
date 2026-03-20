@@ -77,6 +77,11 @@ document.addEventListener("DOMContentLoaded", () => {
 // THEME
 // ===========================================================================
 function initTheme() {
+  if (document.body?.classList.contains("public-page")) {
+    applyTheme("light");
+    return;
+  }
+
   const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
   applyTheme(savedTheme || (prefersDark ? "dark" : "light"));
@@ -94,14 +99,16 @@ function toggleTheme() {
   applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
 }
 
+function setThemeFromSwitch(isDark) {
+  applyTheme(isDark ? "dark" : "light");
+}
+
 function updateThemeToggleUI(theme) {
   const label = document.getElementById("theme-toggle-label");
-  const moon = document.querySelector(".theme-icon-moon");
-  const sun = document.querySelector(".theme-icon-sun");
+  const switchInput = document.getElementById("theme-toggle-input");
 
-  if (label) label.textContent = theme === "dark" ? "Dark Theme" : "Light Theme";
-  if (moon) moon.style.display = theme === "light" ? "block" : "none";
-  if (sun) sun.style.display = theme === "dark" ? "block" : "none";
+  if (label) label.textContent = "Dark mode";
+  if (switchInput) switchInput.checked = theme === "dark";
 }
 
 // ===========================================================================
