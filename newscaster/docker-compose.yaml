@@ -89,6 +89,7 @@ services:
       - ./api/templates:/app/templates
       - ./api/static:/app/static
       - ./output:/output
+      - ./secrets:/var/secrets/google
     environment:
       - REDIS_HOST=redis
       - RABBITMQ_HOST=rabbitmq

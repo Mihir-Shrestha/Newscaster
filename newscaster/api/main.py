@@ -5,11 +5,13 @@ import time
 import uuid
 import threading
 import requests as ext_requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from urllib.parse import unquote, urlparse
 
 import redis
 import pika
 import psycopg2
+from google.cloud import storage
 from fastapi import FastAPI, Request, Response, Form, Cookie, Query
 from fastapi.responses import (
     HTMLResponse, JSONResponse, RedirectResponse
@@ -37,6 +39,8 @@ GOOGLE_TOKEN_URL     = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL  = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
+GCS_BUCKET = os.environ.get("GCS_BUCKET", "newscaster-episodes")
+GCS_SIGNED_URL_EXPIRY_SEC = int(os.environ.get("GCS_SIGNED_URL_EXPIRY_SEC", "3600"))
 
 app = FastAPI()
 
@@ -62,6 +66,67 @@ def favicon():
 # ---------------------------------------------------------------------------
 def get_db():
     return psycopg2.connect(os.environ["DATABASE_URL"])
+
+def _resolve_gcs_object(gcs_url: str | None, episode_id: str | None = None) -> tuple[str, str] | None:
+    if gcs_url:
+        value = gcs_url.strip()
+        if value.startswith("gs://"):
+            without_prefix = value[5:]
+            if "/" in without_prefix:
+                bucket, object_name = without_prefix.split("/", 1)
+                return bucket, unquote(object_name)
+
+        if value.startswith("http://") or value.startswith("https://"):
+            parsed = urlparse(value)
+            path = parsed.path.lstrip("/")
+
+            # Signed/public URL style: /<bucket>/<object>
+            if parsed.netloc in {"storage.googleapis.com", "storage.cloud.google.com"} and "/" in path:
+                bucket, object_name = path.split("/", 1)
+                if bucket and object_name:
+                    return bucket, unquote(object_name)
+
+            # JSON API download style: /download/storage/v1/b/<bucket>/o/<object>
+            parts = path.split("/")
+            if len(parts) >= 7 and parts[:4] == ["download", "storage", "v1", "b"] and parts[5] == "o":
+                bucket = parts[4]
+                object_name = parts[6]
+                if bucket and object_name:
+                    return bucket, unquote(object_name)
+
+        if "/" not in value and value.endswith(".mp3"):
+            return GCS_BUCKET, value
+
+    if episode_id:
+        return GCS_BUCKET, f"{episode_id}_final.mp3"
+
+    return None
+
+def _generate_signed_audio_url(bucket_name: str, object_name: str) -> str:
+    client = storage.Client()
+    blob = client.bucket(bucket_name).blob(object_name)
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(seconds=GCS_SIGNED_URL_EXPIRY_SEC),
+        method="GET",
+    )
+
+def _persist_canonical_object_ref(episode_id: str, bucket_name: str, object_name: str):
+    canonical_ref = f"gs://{bucket_name}/{object_name}"
+    try:
+        r.hset(f"episode:{episode_id}", mapping={"gcs_url": canonical_ref})
+    except Exception as e:
+        print(f"[audio] redis update failed for {episode_id}: {e}")
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE episodes SET gcs_url = %s WHERE id = %s", (canonical_ref, episode_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[audio] postgres update failed for {episode_id}: {e}")
 
 def get_current_user(request: Request) -> dict | None:
     token = request.cookies.get("access_token")
@@ -128,15 +193,27 @@ def format_episode_row(row) -> dict:
 def homepage(request: Request):
     REQUEST_COUNT.inc()
     user = enrich_user_profile(get_current_user(request))
-    return templates.TemplateResponse("index.html", {"request": request, "user": user})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"request": request, "user": user},
+    )
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"request": request, "error": None},
+    )
 
 @app.get("/signup", response_class=HTMLResponse)
 def signup_page(request: Request):
-    return templates.TemplateResponse("signup.html", {"request": request, "error": None})
+    return templates.TemplateResponse(
+        request=request,
+        name="signup.html",
+        context={"request": request, "error": None},
+    )
 
 @app.get("/metrics")
 def metrics():
@@ -153,24 +230,36 @@ def signup(
     display_name: str = Form(...)
 ):
     if len(password) < 8:
-        return templates.TemplateResponse("signup.html", {
-            "request": request,
-            "error": "Password must be at least 8 characters."
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="signup.html",
+            context={
+                "request": request,
+                "error": "Password must be at least 8 characters.",
+            },
+        )
 
     existing = get_local_identity(email)
     if existing:
-        return templates.TemplateResponse("signup.html", {
-            "request": request,
-            "error": "Email already registered. Please log in."
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="signup.html",
+            context={
+                "request": request,
+                "error": "Email already registered. Please log in.",
+            },
+        )
     
     existing_user = get_user_by_email(email)
     if existing_user:
-        return templates.TemplateResponse("signup.html", {
-            "request": request,
-            "error": "This email is linked to a Google account. Please sign in with Google."
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="signup.html",
+            context={
+                "request": request,
+                "error": "This email is linked to a Google account. Please sign in with Google.",
+            },
+        )
     
     try:
         user = create_user_with_password(email, display_name, password)
@@ -180,10 +269,14 @@ def signup(
         return response
     except Exception as e:
         print(f"[signup] ERROR: {str(e)}")
-        return templates.TemplateResponse("signup.html", {
-            "request": request,
-            "error": "Something went wrong. Please try again."
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="signup.html",
+            context={
+                "request": request,
+                "error": "Something went wrong. Please try again.",
+            },
+        )
 
 @app.post("/auth/login")
 def login(
@@ -193,10 +286,14 @@ def login(
 ):
     identity = get_local_identity(email)
     if not identity or not verify_password(password, identity["password_hash"]):
-        return templates.TemplateResponse("login.html", {
-            "request": request,
-            "error": "Invalid email or password."
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "request": request,
+                "error": "Invalid email or password.",
+            },
+        )
     token = create_access_token(identity["id"], identity["email"])
     response = RedirectResponse("/", status_code=302)
     response.set_cookie("access_token", token, httponly=True, max_age=3600)
@@ -421,10 +518,26 @@ def get_audio(request: Request, eid: str):
     if not gcs_url:
         return JSONResponse({"error": "Episode not found"}, status_code=404)
 
+    resolved = _resolve_gcs_object(gcs_url, episode_id=eid)
+    if not resolved:
+        return JSONResponse({"error": "Audio location is invalid"}, status_code=404)
+
+    bucket_name, object_name = resolved
+
+    try:
+        signed_url = _generate_signed_audio_url(bucket_name, object_name)
+    except Exception as e:
+        print(f"[audio] ERROR signing URL for {eid}: {e}")
+        return JSONResponse({"error": "Audio unavailable"}, status_code=503)
+
+    # Normalize old records that still store expiring signed URLs.
+    if not gcs_url.startswith("gs://"):
+        _persist_canonical_object_ref(eid, bucket_name, object_name)
+
     # ── log the listen event (non-blocking best-effort) ────────────────
     log_listen_event(eid, user["id"])
 
-    return RedirectResponse(gcs_url)
+    return RedirectResponse(signed_url)
 
 @app.get("/episodes/{eid}/transcript")
 def get_transcript(request: Request, eid: str):
@@ -1306,13 +1419,17 @@ def view_shared_playlist(request: Request, token: str):
         if not row:
             cur.close()
             conn.close()
-            return templates.TemplateResponse("shared_playlist.html", {
-                "request": request,
-                "error": "This share link is invalid or has expired.",
-                "user": user,
-                "playlist": None,
-                "items": []
-            })
+            return templates.TemplateResponse(
+                request=request,
+                name="shared_playlist.html",
+                context={
+                    "request": request,
+                    "error": "This share link is invalid or has expired.",
+                    "user": user,
+                    "playlist": None,
+                    "items": [],
+                },
+            )
 
         playlist_id = row[0]
         playlist_name = row[1]
@@ -1330,25 +1447,29 @@ def view_shared_playlist(request: Request, token: str):
         cur.close()
         conn.close()
 
-        return templates.TemplateResponse("shared_playlist.html", {
-            "request": request,
-            "user": user,
-            "error": None,
-            "playlist": {
-                "id": str(playlist_id),
-                "name": playlist_name,
-                "expires_at": expires_at.isoformat()
+        return templates.TemplateResponse(
+            request=request,
+            name="shared_playlist.html",
+            context={
+                "request": request,
+                "user": user,
+                "error": None,
+                "playlist": {
+                    "id": str(playlist_id),
+                    "name": playlist_name,
+                    "expires_at": expires_at.isoformat(),
+                },
+                "items": [
+                    {
+                        "id":           str(e[0]),
+                        "title":        e[1],
+                        "published_at": e[2].isoformat() if e[2] else None,
+                        "headlines":    e[4] if e[4] else [],
+                        "position":     e[5],
+                    } for e in episodes
+                ],
             },
-            "items": [
-                {
-                    "id":           str(e[0]),
-                    "title":        e[1],
-                    "published_at": e[2].isoformat() if e[2] else None,
-                    "headlines":    e[4] if e[4] else [],
-                    "position":     e[5]
-                } for e in episodes
-            ]
-        })
+        )
     except Exception as e:
         print(f"[shared] ERROR: {e}")
         return JSONResponse({"error": "Failed to load shared playlist"}, status_code=500)
@@ -1492,23 +1613,31 @@ def top_episodes(request: Request, days: int = 7, limit: int = 10):
 def _run_cleanup():
     removed = []
     kept = []
+    unchecked = []
+    rows = []
     try:
+        storage_client = storage.Client()
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT id, gcs_url FROM episodes")
         rows = cur.fetchall()
         for episode_id, gcs_url in rows:
+            resolved = _resolve_gcs_object(gcs_url, episode_id=str(episode_id))
+            if not resolved:
+                unchecked.append(str(episode_id))
+                continue
+
+            bucket_name, object_name = resolved
             try:
-                resp = ext_requests.head(gcs_url, timeout=5)
-                if resp.status_code == 200:
+                exists = storage_client.bucket(bucket_name).blob(object_name).exists(storage_client)
+                if exists:
                     kept.append(str(episode_id))
                 else:
                     _remove_episode(cur, str(episode_id))
                     removed.append(str(episode_id))
             except Exception as e:
                 print(f"[cleanup] ERROR checking {episode_id}: {e}")
-                _remove_episode(cur, str(episode_id))
-                removed.append(str(episode_id))
+                unchecked.append(str(episode_id))
         conn.commit()
         cur.close()
         conn.close()
@@ -1517,6 +1646,7 @@ def _run_cleanup():
     return {
         "removed": removed,
         "kept": kept,
+        "unchecked": unchecked,
         "total_checked": len(rows),
         "total_removed": len(removed)
     }

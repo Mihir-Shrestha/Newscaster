@@ -5,7 +5,7 @@ import time
 import pika
 import redis
 import psycopg2
-from datetime import datetime, timedelta
+from datetime import datetime
 from google.cloud import texttospeech
 from google.cloud import storage
 from prometheus_client import Counter, start_http_server
@@ -19,7 +19,7 @@ from migrate import run_migrations
 MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "db", "migrations")
 
 RABBIT = "rabbitmq"
-BUCKET_NAME = "newscaster-episodes"
+BUCKET_NAME = os.getenv("GCS_BUCKET", "newscaster-episodes")
 JOBS_PROCESSED = Counter("jobs_processed_total", "Jobs processed")
 
 def connect_rabbit():
@@ -37,9 +37,9 @@ def upload_to_gcs(local_path, gcs_filename):
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(gcs_filename)
     blob.upload_from_filename(local_path)
-    url = blob.generate_signed_url(version="v4", expiration=timedelta(days=7), method="GET")
-    print("Uploaded to GCS. Singed URL: ", url)
-    return url
+    object_ref = f"gs://{BUCKET_NAME}/{gcs_filename}"
+    print("Uploaded to GCS object:", object_ref)
+    return object_ref
 
 def tts_generate(text, filename):
     client = texttospeech.TextToSpeechClient()
