@@ -14,10 +14,17 @@ spec:
     spec:
       containers:
       - name: api
-        image: newscaster-api:latest
-        imagePullPolicy: Never
+        image: us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-api:gke-20260408-2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "384Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
         env:
-        - name: BUCKET_NAME
+        - name: GCS_BUCKET
           valueFrom:
             secretKeyRef:
               name: gcs-bucket
@@ -27,8 +34,68 @@ spec:
             secretKeyRef:
               name: postgres-app
               key: DATABASE_URL
+        - name: NEWS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: NEWS_API_KEY
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: GOOGLE_CLIENT_ID
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: GOOGLE_CLIENT_SECRET
+        - name: GOOGLE_REDIRECT_URI
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: GOOGLE_REDIRECT_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: JWT_SECRET
+        - name: JWT_ALGORITHM
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: JWT_ALGORITHM
+        - name: JWT_EXPIRE_MINUTES
+          valueFrom:
+            secretKeyRef:
+              name: newscaster-api-secrets
+              key: JWT_EXPIRE_MINUTES
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/var/secrets/google/gcp-key.json"
+        volumeMounts:
+        - name: gcp-secret
+          mountPath: /var/secrets/google
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         ports:
         - containerPort: 8000
+      volumes:
+      - name: gcp-secret
+        secret:
+          secretName: gcp-sa-key
 
 ---
 apiVersion: v1
@@ -36,6 +103,7 @@ kind: Service
 metadata:
   name: api
 spec:
+  type: ClusterIP
   selector:
     app: api
   ports:

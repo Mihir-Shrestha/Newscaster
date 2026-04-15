@@ -44,9 +44,21 @@ GCS_SIGNED_URL_EXPIRY_SEC = int(os.environ.get("GCS_SIGNED_URL_EXPIRY_SEC", "360
 
 app = FastAPI()
 
+def run_migrations_with_retry(migrations_dir: str, attempts: int = 30, delay_sec: int = 2):
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            run_migrations(migrations_dir)
+            return
+        except Exception as e:
+            last_error = e
+            print(f"[startup] migration attempt {attempt}/{attempts} failed: {e}")
+            time.sleep(delay_sec)
+    raise RuntimeError(f"Failed to run migrations after {attempts} attempts: {last_error}")
+
 @app.on_event("startup")
 def on_startup():
-    run_migrations(MIGRATIONS_DIR)
+    run_migrations_with_retry(MIGRATIONS_DIR)
     t = threading.Thread(target=_scheduled_cleanup, daemon=True)
     t.start()
 

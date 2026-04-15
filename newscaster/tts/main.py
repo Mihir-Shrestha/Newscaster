@@ -22,6 +22,18 @@ RABBIT = "rabbitmq"
 BUCKET_NAME = os.getenv("GCS_BUCKET", "newscaster-episodes")
 JOBS_PROCESSED = Counter("jobs_processed_total", "Jobs processed")
 
+def run_migrations_with_retry(migrations_dir: str, attempts: int = 30, delay_sec: int = 2):
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            run_migrations(migrations_dir)
+            return
+        except Exception as e:
+            last_error = e
+            print(f"[startup] migration attempt {attempt}/{attempts} failed: {e}")
+            time.sleep(delay_sec)
+    raise RuntimeError(f"Failed to run migrations after {attempts} attempts: {last_error}")
+
 def connect_rabbit():
     while True:
         try:
@@ -144,7 +156,7 @@ if __name__ == "__main__":
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/var/secrets/google/gcp-key.json"
 
     # Run DB migrations before consuming
-    run_migrations(MIGRATIONS_DIR)
+    run_migrations_with_retry(MIGRATIONS_DIR)
 
     conn = connect_rabbit()
     ch = conn.channel()

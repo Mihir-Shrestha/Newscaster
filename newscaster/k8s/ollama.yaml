@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: ollama
 spec:
+  strategy:
+    type: Recreate
   replicas: 1
   selector:
     matchLabels:
@@ -15,6 +17,13 @@ spec:
       initContainers:
       - name: model-bootstrap
         image: ollama/ollama:latest
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
         env:
         - name: OLLAMA_MODEL
           value: "llama3.2:3b"
@@ -34,11 +43,34 @@ spec:
       containers:
       - name: ollama
         image: ollama/ollama:latest
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "3Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
         ports:
         - containerPort: 11434
         volumeMounts:
         - name: ollama-models
           mountPath: /root/.ollama
+        readinessProbe:
+          httpGet:
+            path: /api/tags
+            port: 11434
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        livenessProbe:
+          httpGet:
+            path: /api/tags
+            port: 11434
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6
       volumes:
       - name: ollama-models
         persistentVolumeClaim:

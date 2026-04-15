@@ -14,8 +14,15 @@ spec:
     spec:
       containers:
       - name: summarizer
-        image: newscaster-summarizer:latest
-        imagePullPolicy: Never
+        image: us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-summarizer:gke-20260408-1
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1500m"
+            memory: "2Gi"
         env:
         - name: RABBITMQ_HOST
           value: "rabbitmq"
@@ -23,6 +30,24 @@ spec:
           value: "http://ollama:11434"
         - name: OLLAMA_MODEL
           value: "llama3.2:3b"
+        - name: OLLAMA_TIMEOUT_SEC
+          value: "300"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        readinessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         ports:
         - containerPort: 9090
 ---

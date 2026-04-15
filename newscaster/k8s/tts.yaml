@@ -14,12 +14,21 @@ spec:
     spec:
       containers:
       - name: tts
-        image: newscaster-tts:latest
-        imagePullPolicy: Never
+        image: us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-tts:gke-20260408-2
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "384Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
         env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
         - name: GOOGLE_APPLICATION_CREDENTIALS
           value: "/var/secrets/google/gcp-key.json"
-        - name: BUCKET_NAME
+        - name: GCS_BUCKET
           valueFrom:
             secretKeyRef:
               name: gcs-bucket
@@ -34,6 +43,20 @@ spec:
           mountPath: /var/secrets/google
         - name: output
           mountPath: /output
+        readinessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         ports:
         - containerPort: 9090
       volumes:

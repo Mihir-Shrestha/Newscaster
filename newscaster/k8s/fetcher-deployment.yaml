@@ -14,11 +14,20 @@ spec:
     spec:
       containers:
       - name: fetcher
-        image: newscaster-fetcher:latest
-        imagePullPolicy: Never
+        image: us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-fetcher:gke-20260408-1
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
         env:
         - name: FETCHER_MODE
           value: "worker"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         - name: NEWS_API_KEY
           valueFrom:
             secretKeyRef:
@@ -26,6 +35,20 @@ spec:
               key: NEWS_API_KEY
         - name: RABBITMQ_HOST
           value: "rabbitmq"
+        readinessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         ports:
         - containerPort: 9090
 ---
