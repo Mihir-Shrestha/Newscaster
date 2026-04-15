@@ -1,4 +1,3 @@
-<!-- filepath: /Users/mihir/Documents/Fall_2025/CSCI_5253/Project/Newscaster_Project/newscaster/api/templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -188,8 +187,22 @@
             <h2 class="section-title">Daily News Podcast</h2>
             <button class="btn-show-all" onclick="showAllEpisodes('daily')">Show all</button>
           </div>
-          <div class="episode-grid" id="daily-episodes-list">
-            <p class="loading-text">Loading...</p>
+          <div class="daily-carousel" id="daily-carousel">
+            <button class="daily-nav-btn" id="daily-prev-btn" onclick="scrollDailyEpisodes(-1)" title="Previous episodes" aria-label="Previous episodes">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+              </svg>
+            </button>
+            <div class="daily-carousel-viewport" id="daily-carousel-viewport">
+              <div class="episode-grid daily-episode-row" id="daily-episodes-list">
+                <p class="loading-text">Loading...</p>
+              </div>
+            </div>
+            <button class="daily-nav-btn" id="daily-next-btn" onclick="scrollDailyEpisodes(1)" title="Next episodes" aria-label="Next episodes">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="m8.59 16.59 1.41 1.41 6-6-6-6-1.41 1.41L13.17 12z"/>
+              </svg>
+            </button>
           </div>
         </section>
 

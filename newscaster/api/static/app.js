@@ -10,6 +10,7 @@ let activeView         = "home";
 let openPickerBtn      = null;
 let plDragSrcId        = null;
 let currentGenreFilter = "all"; // tracks filter in custom section
+let dailyCarouselBound = false;
 const playerState = { episodeId: null, isPlaying: false };
 
 const audio = document.getElementById("global-audio");
@@ -49,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   if (!document.getElementById("home-view")) return;
 
+  setupDailyCarouselControls();
   loadDailyEpisodes();
   loadCustomEpisodes("all");
   loadPlaylists();
@@ -228,8 +230,65 @@ function clearSearchInput() {
 // EPISODES — LOAD
 // ===========================================================================
 async function loadDailyEpisodes() {
-  await fetchAndRender("/episodes/daily?limit=8",
-    document.getElementById("daily-episodes-list"), false, false);
+  const container = document.getElementById("daily-episodes-list");
+  if (!container) return;
+
+  container.innerHTML = '<p class="loading-text">Loading...</p>';
+
+  try {
+    const res = await fetch("/episodes/daily?limit=100", { credentials: "include" });
+    if (res.status === 401) { window.location.href = "/login"; return; }
+
+    const data = await res.json();
+    const episodes = (Array.isArray(data) ? data : data.episodes || data.results || data.items || [])
+      .slice()
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+
+    renderEpisodeCards(episodes, container, true, false);
+  } catch {
+    container.innerHTML = '<p class="empty-text">Failed to load.</p>';
+  }
+
+  updateDailyCarouselControls();
+}
+
+function setupDailyCarouselControls() {
+  const viewport = document.getElementById("daily-carousel-viewport");
+  if (!viewport || dailyCarouselBound) return;
+
+  viewport.addEventListener("scroll", updateDailyCarouselControls, { passive: true });
+  window.addEventListener("resize", updateDailyCarouselControls);
+  dailyCarouselBound = true;
+}
+
+function updateDailyCarouselControls() {
+  const viewport = document.getElementById("daily-carousel-viewport");
+  const prevBtn = document.getElementById("daily-prev-btn");
+  const nextBtn = document.getElementById("daily-next-btn");
+  if (!viewport || !prevBtn || !nextBtn) return;
+
+  const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+  const atStart = viewport.scrollLeft <= 2;
+  const atEnd = viewport.scrollLeft >= maxScrollLeft - 2;
+
+  prevBtn.disabled = atStart;
+  nextBtn.disabled = atEnd;
+}
+
+function scrollDailyEpisodes(direction) {
+  const viewport = document.getElementById("daily-carousel-viewport");
+  const track = document.getElementById("daily-episodes-list");
+  if (!viewport || !track) return;
+
+  const firstCard = track.querySelector(".ep-card");
+  if (!firstCard) return;
+
+  const gap = parseFloat(window.getComputedStyle(track).gap || "0") || 0;
+  const cardStep = firstCard.getBoundingClientRect().width + gap;
+  const visibleCards = Math.max(1, Math.floor(viewport.clientWidth / cardStep));
+  const scrollAmount = cardStep * Math.max(1, visibleCards - 1);
+
+  viewport.scrollBy({ left: direction * scrollAmount, behavior: "smooth" });
 }
 
 async function loadCustomEpisodes(genre = "all") {

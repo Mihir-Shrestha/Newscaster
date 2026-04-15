@@ -565,6 +565,72 @@ button,
   gap: 1rem;
 }
 
+/* Daily episodes carousel */
+.daily-carousel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.daily-carousel-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.daily-carousel-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.daily-episode-row {
+  display: flex;
+  flex-wrap: nowrap;
+  grid-template-columns: none;
+  gap: 1rem;
+}
+
+.daily-episode-row .ep-card {
+  flex: 0 0 150px;
+}
+
+.daily-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--button-border);
+  background: var(--surface-primary);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.daily-nav-btn:hover {
+  background: var(--color-primary-light);
+  color: var(--text-primary);
+}
+
+.daily-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 880px) {
+  .daily-nav-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .daily-episode-row .ep-card {
+    flex-basis: 138px;
+  }
+}
+
 /* Episode card */
 .ep-card {
   background: var(--surface-primary);
