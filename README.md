@@ -1,62 +1,128 @@
 # Newscaster
 
-## What it does
-Newscaster is a microservice-based app that turns live news into short podcast episodes. It fetches current headlines, summarizes them into a spoken script, converts that script into audio, and lets users play, search, save, and share episodes through a web app.
+Newscaster is a production-style, microservice-driven platform that turns live news into short podcast episodes.
 
-## Why this was built
-Newscaster grew from a simple, familiar habit: enjoying podcasts as an easy way to stay informed. Keeping up with the news often takes more time and focus than a busy day allows, and while social media can surface updates quickly, it can also be distracting, noisy, and fragmented. The goal here was to create a better middle ground, a way to turn important news into something easier to follow through listening.
+It combines article retrieval, LLM summarization, text-to-speech generation, cloud storage, and a full web product experience (search, playlists, sharing, and authentication).
 
-It also became an opportunity to explore what it takes to build a complete software system end to end. Rather than stopping at one piece of functionality, this project connects live news retrieval, summarization, audio generation, storage, and a real user-facing application. The result is a project shaped by a personal use case, but built with the structure of a practical production-style system.
+## Demo
 
-## How it works
-- API layer: A FastAPI app handles authentication, episode browsing, search, custom generation requests, playlists, analytics, and the frontend UI.
-- Database: PostgreSQL stores users, episodes, playlists, shares, and listen analytics. Redis is used as a lightweight cache for episode metadata and latest-audio lookups.
-- Processing logic: The API queues jobs in RabbitMQ, the fetcher pulls articles from NewsAPI, the summarizer uses Ollama to generate a podcast-style script, and the TTS worker converts that script to MP3 with Google Cloud Text-to-Speech before storing metadata and audio locations.
+Live app (temporary domain): https://34-8-253-132.sslip.io
 
-## Architecture
+Product snapshot:
 
-```text
+![Newscaster UI](assets/NewsCaster%20AI.png)
+
+Recommended demo format (best for GitHub + interviews):
+
+1. 60 to 120 second walkthrough video (Loom or YouTube unlisted)
+2. Show this sequence in order:
+  - Login with Google OAuth
+  - Daily episodes list and playback
+  - Custom generation with keywords or genre
+  - Add episode to playlist and open shared playlist link
+3. Add one line in the video description explaining architecture:
+  - FastAPI + RabbitMQ + Fetcher + Summarizer + TTS + GCS + Postgres + Redis on GKE
+
+What to keep in the demo section:
+
+- One live URL
+- One product screenshot
+- One short walkthrough video
+- One architecture sentence
+
+This is enough for both technical and non-technical viewers without overwhelming them.
+
+## Why this project
+
+Following the news through social feeds is fast, but noisy. Newscaster was built to convert high-volume news into a structured listening experience that is easy to consume.
+
+This project also serves as an end-to-end systems exercise: asynchronous workflows, cloud deployment, reliability hardening, and user-facing product design in one platform.
+
+## Core capabilities
+
+- Daily and custom podcast episode generation
+- Search by query and date range
+- Episode playback with transcript support
+- Playlist creation, sharing, and management
+- Google OAuth login
+- Cloud-hosted audio persistence and retrieval
+
+## System architecture
+
+Request flow:
+
 User request
-  -> FastAPI API
-  -> RabbitMQ queue
-  -> Fetcher service
-  -> Summarizer service
-  -> TTS service
-  -> Google Cloud Storage + PostgreSQL + Redis
-  -> API serves episodes, transcripts, playlists, and analytics
-```
+-> FastAPI API
+-> RabbitMQ queue
+-> Fetcher service (NewsAPI)
+-> Summarizer service (Ollama)
+-> TTS service (Google Cloud TTS)
+-> Google Cloud Storage + PostgreSQL + Redis
+-> API serves episodes, playlists, and analytics
 
-Services in the project:
+Service responsibilities:
 
-- `api`: authentication, UI, search, playlists, analytics, RSS
-- `fetcher`: article collection from NewsAPI
-- `summarizer`: podcast script generation with Ollama
-- `tts`: audio generation, upload, and persistence
-- `postgres`, `redis`, `rabbitmq`, `ollama`: supporting infrastructure
+- api: auth, frontend, search, playlists, analytics, orchestration
+- fetcher: article ingestion and queue handoff
+- summarizer: script generation using local LLM runtime
+- tts: speech synthesis, object upload, and episode persistence
+- postgres, redis, rabbitmq, ollama: data, caching, messaging, model runtime
 
-## Run locally
-1. Make sure Docker and Docker Compose are installed.
-2. Copy `newscaster/.env_example` to `newscaster/.env`.
-3. Fill in your NewsAPI key, database settings, JWT secret, and Google OAuth values.
-4. Add your Google Cloud service account key at `newscaster/secrets/gcp-key.json`.
-5. Make sure your Google Cloud Storage bucket matches the one expected by the app, or update the code/config.
-6. From `newscaster/`, run:
+## Notable engineering updates
 
-```bash
-docker compose up --build
-```
+- Migrated audio persistence to stable object references (gs://...) and now signs playback URLs at request time to avoid expired links for older episodes.
+- Added startup migration retry logic to improve resilience during service/database startup races.
+- Added health probes and resource limits/requests across Kubernetes workloads.
+- Added API Horizontal Pod Autoscaler and enabled cluster/node autoscaling to reduce idle cost.
+- Enabled HTTPS ingress with managed certificate for OAuth-compatible public access.
 
-7. Open `http://localhost:8000`.
+## Tech stack
 
-## Key learnings
-- How to design and coordinate a distributed workflow across multiple services instead of putting all processing into a single application.
-- How to work with asynchronous pipelines, message queues, and background workers to make the system more modular and easier to extend.
-- How much engineering work goes into product features beyond the core pipeline, especially authentication, search, playlists, analytics, and persistence.
-- How important clean service boundaries, database migrations, configuration management, and deployment setup are when building software that is meant to feel production-ready.
+- Backend: FastAPI, Python
+- Messaging: RabbitMQ
+- Data: PostgreSQL, Redis
+- LLM summarization: Ollama
+- TTS and object storage: Google Cloud Text-to-Speech, Google Cloud Storage
+- Containers and orchestration: Docker, Kubernetes (GKE)
+- Observability manifests: Prometheus, Grafana
 
-## Future improvements
-- Scaling: add better worker autoscaling, retries, and dead-letter handling for failed jobs.
-- Monitoring: expand dashboards and alerting around queue health, worker latency, and audio generation failures.
-- Configuration: make storage bucket names and provider settings fully configurable.
-- Testing: add automated integration tests for the end-to-end generation pipeline.
-- Security: move secrets to a proper secret manager and tighten production auth/config handling.
+## Run locally (Docker)
+
+1. Copy newscaster/.env_example to newscaster/.env
+2. Fill environment values (NewsAPI, DB, JWT, OAuth)
+3. Add Google service account key at newscaster/secrets/gcp-key.json
+4. From the newscaster directory, run:
+
+  docker compose up --build
+
+5. Open http://localhost:8000
+
+## Deploy updates to GKE
+
+Important: frontend assets are served by the API container, so UI changes require rebuilding and redeploying the API image.
+
+From newscaster:
+
+1. Build and push API image (use a new tag each time):
+
+  docker buildx build --platform linux/amd64 -f api/Dockerfile -t us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-api:<new-tag> --push .
+
+2. Roll the API deployment:
+
+  kubectl -n newscaster set image deployment/api api=us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-api:<new-tag>
+  kubectl -n newscaster rollout status deployment/api
+
+Key Kubernetes manifests are in newscaster/k8s.
+
+## Current deployment snapshot
+
+- Public ingress with HTTPS: newscaster/k8s/ingress.yaml
+- API autoscaling policy: newscaster/k8s/autoscaling.yaml
+- Core service deployments: newscaster/k8s/*.yaml
+
+## Roadmap
+
+- Move secrets to a managed secret solution (for example, Secret Manager integration)
+- Split node pools for stateful vs elastic workloads to improve cost/performance isolation
+- Add stronger queue retry and dead-letter handling
+- Expand integration and end-to-end pipeline tests
