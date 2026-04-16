@@ -1222,6 +1222,14 @@ button,
   transition: color 0.15s, background 0.15s;
 }
 .player-btn:hover { color: var(--text-primary); background: var(--color-primary-light); }
+.player-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.player-btn:disabled:hover {
+  color: var(--text-secondary);
+  background: none;
+}
 
 .player-play-btn {
   width: 34px;

@@ -667,7 +667,11 @@ async function playEpisode(id, title, subtitle, event) {
   audio.load();
   audio.play().catch(console.error);
 
-  document.getElementById("transcript-btn").style.display = "none";
+  const transcriptBtn = document.getElementById("transcript-btn");
+  if (transcriptBtn) {
+    transcriptBtn.disabled = true;
+    transcriptBtn.title = "Transcript unavailable";
+  }
   currentTranscript = null;
   try {
     const res = await fetch(`/episodes/${id}/transcript`, { credentials: "include" });
@@ -675,7 +679,10 @@ async function playEpisode(id, title, subtitle, event) {
       const data = await res.json();
       if (data.transcript) {
         currentTranscript = data.transcript;
-        document.getElementById("transcript-btn").style.display = "flex";
+        if (transcriptBtn) {
+          transcriptBtn.disabled = false;
+          transcriptBtn.title = "Transcript";
+        }
       }
     }
   } catch (_) {}
