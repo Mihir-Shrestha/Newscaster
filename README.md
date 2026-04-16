@@ -10,18 +10,13 @@ Live app (temporary domain): https://34-8-253-132.sslip.io
 
 Product snapshot:
 
-![Newscaster UI](assets/NewsCaster%20AI.png)
+![Newscaster UI](assets/NewsCaster_AI_Final.png)
 
 Recommended demo format (best for GitHub + interviews):
 
 1. 60 to 120 second walkthrough video (Loom or YouTube unlisted)
-2. Show this sequence in order:
-  - Login with Google OAuth
-  - Daily episodes list and playback
-  - Custom generation with keywords or genre
-  - Add episode to playlist and open shared playlist link
-3. Add one line in the video description explaining architecture:
-  - FastAPI + RabbitMQ + Fetcher + Summarizer + TTS + GCS + Postgres + Redis on GKE
+2. Walkthrough sequence: login with Google OAuth, browse/play daily episodes, generate a custom episode, add to playlist, open a shared playlist link
+3. Add one architecture sentence in the video description: FastAPI + RabbitMQ + Fetcher + Summarizer + TTS + GCS + Postgres + Redis on GKE
 
 What to keep in the demo section:
 
@@ -40,7 +35,8 @@ This project also serves as an end-to-end systems exercise: asynchronous workflo
 
 ## Core capabilities
 
-- Daily and custom podcast episode generation
+- Daily automatic podcast generation via Kubernetes CronJob
+- Custom podcast episode generation on demand (keywords or genre)
 - Search by query and date range
 - Episode playback with transcript support
 - Playlist creation, sharing, and management
@@ -48,6 +44,8 @@ This project also serves as an end-to-end systems exercise: asynchronous workflo
 - Cloud-hosted audio persistence and retrieval
 
 ## System architecture
+
+![Newscaster System Architecture](assets/newscaster-system-architecture.png)
 
 Request flow:
 
@@ -93,36 +91,16 @@ Service responsibilities:
 3. Add Google service account key at newscaster/secrets/gcp-key.json
 4. From the newscaster directory, run:
 
-  docker compose up --build
+```bash
+docker compose up --build
+```
 
 5. Open http://localhost:8000
 
-## Deploy updates to GKE
-
-Important: frontend assets are served by the API container, so UI changes require rebuilding and redeploying the API image.
-
-From newscaster:
-
-1. Build and push API image (use a new tag each time):
-
-  docker buildx build --platform linux/amd64 -f api/Dockerfile -t us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-api:<new-tag> --push .
-
-2. Roll the API deployment:
-
-  kubectl -n newscaster set image deployment/api api=us-central1-docker.pkg.dev/newscaster-487321/newscaster-repo/newscaster-api:<new-tag>
-  kubectl -n newscaster rollout status deployment/api
-
-Key Kubernetes manifests are in newscaster/k8s.
-
-## Current deployment snapshot
-
-- Public ingress with HTTPS: newscaster/k8s/ingress.yaml
-- API autoscaling policy: newscaster/k8s/autoscaling.yaml
-- Core service deployments: newscaster/k8s/*.yaml
-
-## Roadmap
+## Future improvements
 
 - Move secrets to a managed secret solution (for example, Secret Manager integration)
-- Split node pools for stateful vs elastic workloads to improve cost/performance isolation
-- Add stronger queue retry and dead-letter handling
+- Use separate node pools for stateful services and elastic workers for stronger isolation and cost efficiency
+- Add queue retry backoff and dead-letter handling for failed jobs
 - Expand integration and end-to-end pipeline tests
+- Add a stable custom domain for public demo sharing
