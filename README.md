@@ -6,7 +6,9 @@ It combines article retrieval, LLM summarization, text-to-speech generation, clo
 
 ## Demo
 
-[![Watch the video demo here](assets/Newscaster-Demo.gif)](https://youtu.be/PrSQi9AIMDs)
+Watch the full video demo here: [YouTube Demo](https://youtu.be/PrSQi9AIMDs)
+
+[![Newscaster demo preview](assets/Newscaster-Demo.gif)](https://youtu.be/PrSQi9AIMDs)
 
 ## Why this project
 
