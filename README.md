@@ -6,26 +6,7 @@ It combines article retrieval, LLM summarization, text-to-speech generation, clo
 
 ## Demo
 
-Live app (temporary domain): https://34-8-253-132.sslip.io
-
-Product snapshot:
-
-![Newscaster UI](assets/NewsCaster_AI_Final.png)
-
-Recommended demo format (best for GitHub + interviews):
-
-1. 60 to 120 second walkthrough video (Loom or YouTube unlisted)
-2. Walkthrough sequence: login with Google OAuth, browse/play daily episodes, generate a custom episode, add to playlist, open a shared playlist link
-3. Add one architecture sentence in the video description: FastAPI + RabbitMQ + Fetcher + Summarizer + TTS + GCS + Postgres + Redis on GKE
-
-What to keep in the demo section:
-
-- One live URL
-- One product screenshot
-- One short walkthrough video
-- One architecture sentence
-
-This is enough for both technical and non-technical viewers without overwhelming them.
+[Watch the full video demo](assets/demo/newscaster-demo.mp4)
 
 ## Why this project
 
@@ -45,7 +26,7 @@ This project also serves as an end-to-end systems exercise: asynchronous workflo
 
 ## System architecture
 
-![Newscaster System Architecture](assets/newscaster-system-architecture.png)
+![Newscaster System Architecture](assets/NewsCaster_AI_Final.png)
 
 Request flow:
 
